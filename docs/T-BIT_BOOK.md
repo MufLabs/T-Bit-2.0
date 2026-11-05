@@ -6193,3 +6193,48 @@ Smoke runtime (ejecutor de herramientas real via tsx):
 
 ```
 
+
+
+---
+
+# 25.34 Fase 68 - UX del Runtime Multi-Agente en Q-Vault OS
+
+## Objetivo
+
+Exponer el runtime multi-agente, el failover de IA y la memoria evolutiva en la interfaz con un lenguaje claro, indicadores de razonamiento legibles y estados de carga/error, sin degradar Quantum Engine ni la experiencia existente.
+
+## Archivos nuevos y modificados
+
+```text
+src/agentRuntimeClient.ts            nuevo: cliente API del runtime (agentes, eventos, salud, enjambre)
+src/components/AgentRuntimePanel.tsx nuevo: panel del modo desarrollador
+src/App.tsx                          modificado: montaje del panel (1 import + 1 linea)
+```
+
+## Que muestra el panel
+
+1. **Metricas**: agentes del catalogo, eslabones de la cadena IA y proveedores en enfriamiento.
+2. **Salud de proveedores**: estado por eslabon (DISPONIBLE / ENFRIAMIENTO / CAIDO) con latencia de la ultima peticion; el failover continuo de la Fase 65 se vuelve visible.
+3. **Ejecutor de enjambre**: campo de tarea + boton Ejecutar, con indicador de razonamiento por fases ("agentes en paralelo -> validacion cruzada -> consenso"), estado de exito y error.
+4. **Consenso**: respuesta consolidada, veredictos de validacion cruzada con color semantico (aprobado/observaciones/rechazado) y terminos sin respaldo en Q-Vault marcados explicitamente como no verificados (anti-alucinacion visible).
+5. **Journal auditable**: ultimos 40 eventos del bus inter-agente con marca de tiempo.
+6. **Catalogo**: los 18 agentes con su politica derivada (lectura/escritura/borrado) y numero de herramientas.
+
+## Decisiones de UX
+
+- El panel vive en el **modo desarrollador** existente (junto a Container Health, Query Index, Memory Graph), conservando la identidad visual (dark, mono, bordes finos, acentos cyan/lime) y sin tocar el flujo de usuario final del chat.
+- El lenguaje oculta la complejidad tecnica: no se exponen chunks, WAL ni llaves; se habla de "agentes", "consenso" y "respaldo en Q-Vault".
+- Estados de carga con spinner (`animate-spin`), errores en bloque rojo legible, botones deshabilitados durante operaciones.
+
+## Paridad multiplataforma
+
+La interfaz es React 18 + Vite + Tailwind servida por Express: se comporta identica en Windows, macOS y Linux (mismo bundle, sin APIs nativas de plataforma). **No verificado en macOS/Linux** (entorno de desarrollo Windows); no hay dependencias de plataforma conocidas en el stack de UI. El empaquetado de escritorio sigue siendo deuda tecnica registrada (ver seccion de limitaciones del libro).
+
+## Verificacion ejecutada
+
+```text
+npx tsc --noEmit   -> 0 errores (frontend + backend)
+npm run build      -> PASS (vite 6.4.2, 2365 modulos; warning preexistente de chunk 1.4 MB)
+npm run logic:build -> PASS
+npm test           -> 57/57 PASS
+```

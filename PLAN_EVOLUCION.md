@@ -32,7 +32,7 @@
 | T2 | Objetivo 2 | `FallbackProviderChain` en `AiProviderFactory.ts`/`UniversalAiProviders.ts`: failover 429/5xx/timeout/cuota, cooldown, monitoreo de latencia, cadena configurable por env | ✅ Hecha (Fase 65) |
 | T3 | Objetivo 3 | Memoria evolutiva: persistencia automática de ejecuciones de agentes/consenso en `memoryCore` + verificación cruzada con `documentQa`/`queryIndex` antes de respuestas definitivas | ✅ Hecha (Fase 66) |
 | T4 | Objetivo 4 | `DynamicSkillManager.ts`: catálogo local + repos de referencia, skills declarativas (.md/.json), integridad sha256 + commit fijado, permisos vía `aiPermissions.ts`, integración con `TBitToolSchemas.ts`/`TBitLocalToolExecutor.ts` | ✅ Hecha (Fase 67) |
-| T5 | Objetivos 5–6 | UX Q-Vault OS: indicadores de razonamiento multi-agente/failover, pulido visual, paridad multiplataforma dentro del stack | Pendiente |
+| T5 | Objetivos 5–6 | UX Q-Vault OS: indicadores de razonamiento multi-agente/failover, pulido visual, paridad multiplataforma dentro del stack | ✅ Hecha (Fase 68) |
 | T6 | Auditoría | Suite completa PASS, smoke E2E, libro actualizado, `INFORME_EVOLUCION.md` | Pendiente |
 
 Cada tanda termina con: `npm test` en PASS, `npx tsc --noEmit` limpio, commit atómico y libro actualizado en el mismo incremento.
@@ -54,6 +54,7 @@ Cada tanda termina con: `npm test` en PASS, `npx tsc --noEmit` limpio, commit at
 ## 3. Estado para retomar (se actualiza al cierre de cada tanda)
 
 - **Última tanda completada:** T4 — Skills dinámicas (Fase 67). 57/57 tests PASS, smoke real del ejecutor de herramientas: buscar/ejecutar/instalar skill con verificación de integridad. Libro actualizado (sección 25.33).
-- **Siguiente acción:** implementar T5 (Objetivos 5-6): indicadores de razonamiento/estado de agentes y failover en la UI de Q-Vault OS (`src/App.tsx`), sin degradar Quantum Engine; auditar paridad multiplataforma del stack actual.
+- **Última tanda completada:** T5 — UX del runtime multi-agente (Fase 68). `AgentRuntimePanel` montado en Q-Vault OS; build frontend PASS, 57/57 tests. Libro actualizado (sección 25.34).
+- **Siguiente acción:** cierre final — regenerar `INFORME_EVOLUCION.md` con evidencia completa, auditoría final de no regresión (`npm test`, `logic:build`, `build`) y commit de cierre.
 - **Comandos de verificación:** `npm test`, `npm run logic:build`, `npx tsc --noEmit`, `npm run build`.
 - **Nota de entorno:** en PowerShell, `npm ... 2>&1` convierte los avisos de stderr de npm en errores falsos; ejecutar los comandos npm sin redirección.

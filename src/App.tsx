@@ -6,6 +6,7 @@ import { TBitNetworkPanel } from "./components/TBitNetworkPanel";
 import { AssetManagerPanel } from "./components/AssetManagerPanel";
 import { BinaryAssetPanel } from "./components/BinaryAssetPanel";
 import { ContainerHealthPanel } from "./components/ContainerHealthPanel";
+import { AgentRuntimePanel } from "./components/AgentRuntimePanel";
 import { EncryptionKeyPanel } from "./components/EncryptionKeyPanel";
 import { AiPermissionsPanel } from "./components/AiPermissionsPanel";
 import { MarkdownImportPanel } from "./components/MarkdownImportPanel";
@@ -4839,6 +4840,7 @@ export default function App() {
           </div>
         </div>
         <ContainerHealthPanel />
+        <AgentRuntimePanel />
         <EncryptionKeyPanel />
         <AiPermissionsPanel />
         <TBitNetworkPanel />
