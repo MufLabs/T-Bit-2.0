@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": ".github/agents"
+		},
+		{
+			"path": "../../Muf Labs"
+		},
+		{
+			"path": "../../Muf_Labs"
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}

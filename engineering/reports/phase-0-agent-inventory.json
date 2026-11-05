@@ -1,0 +1,454 @@
+{
+  "generatedAt": "2026-10-07T03:16:36.087Z",
+  "source": ".github/agents",
+  "totalAgents": 18,
+  "contract": {
+    "presentInAll": [
+      "name",
+      "description",
+      "capabilities",
+      "tools",
+      "argument-hint"
+    ],
+    "absentInAll": [
+      "permissions",
+      "modelRequirements"
+    ],
+    "toolsVocabulary": [
+      "agent",
+      "edit",
+      "read",
+      "search",
+      "vscode"
+    ],
+    "knownGaps": [
+      "permissions: ausente en todos los specs -> lo cubrira el PolicyOverlay (Fase 1)",
+      "modelRequirements: ausente en todos los specs -> lo cubrira el PolicyOverlay (Fase 1)",
+      "GraphEngineeringAgent: no existe -> diseno pendiente (Fase 3)"
+    ]
+  },
+  "specs": [
+    {
+      "file": "AiSystemEngineer.agent.md",
+      "name": "AI Systems Engineer",
+      "description": "Specialist responsible for AI architecture, provider integration, memory systems, context management, reasoning models, cognitive orchestration, and LLM infrastructure for the current software project.",
+      "capabilities": [
+        "Analyze",
+        "AI",
+        "Models",
+        "Providers",
+        "PromptEngineering",
+        "RAG",
+        "MCP"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for AI providers, LLM integration, prompt engineering, context management, reasoning models, token optimization, RAG, MCP, tool calling, AI memory systems, and AI architecture.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 3659
+    },
+    {
+      "file": "BackendEngineering.agent.md",
+      "name": "Backend Engineer",
+      "description": "Specialist responsible for designing, implementing, maintaining, and optimizing the backend architecture, APIs, business logic, integrations, scalability, security, and server-side infrastructure of the current software project.",
+      "capabilities": [
+        "Analyze",
+        "Backend",
+        "API",
+        "Services",
+        "NodeJS",
+        "Architecture"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for backend architecture, REST and GraphQL APIs, business logic, authentication, authorization, server-side development, microservices, integrations, messaging systems, performance optimization, caching, databases, distributed systems, cloud services, and backend engineering best practices.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 6231
+    },
+    {
+      "file": "ChiefArchitect.agent.md",
+      "name": "Chief Architect",
+      "description": "Governs the overall architecture of the current software project, ensuring every technical decision remains aligned with the project's official architecture, engineering standards, and long-term design principles.",
+      "capabilities": [
+        "Analyze",
+        "Architecture",
+        "Design",
+        "Planning",
+        "ADR",
+        "Governance"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for architecture reviews, major design decisions, subsystem analysis, project planning, technology evaluation, or validating that new features comply with the project's official architecture.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 7855
+    },
+    {
+      "file": "CodeReviewer.agent.md",
+      "name": "Code Reviewer",
+      "description": "Performs independent engineering review of implementations produced by the Developer Agent. Verifies complete compliance with the approved Engineering Consensus Specification, Engineering Standards, Architecture Documentation, and project governance. Detects implementation defects, architectural inconsistencies, engineering violations, regressions, undocumented behavior, and unauthorized scope expansion. The Code Reviewer never modifies source code, never validates implementations, and never makes engineering decisions.",
+      "capabilities": [
+        "Analyze",
+        "Review",
+        "Audit",
+        "Compliance",
+        "Standards"
+      ],
+      "tools": [
+        "read",
+        "search"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Engineering Change Request (ECR), Engineering Consensus Report, Engineering Consensus Specification, Implementation Package, PROJECT_STATE.md, Architecture Documentation, Engineering Standards, approved ADRs, supporting technical documentation.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 69222
+    },
+    {
+      "file": "ConsensusAgent.agent.md",
+      "name": "Consensus Agent",
+      "description": "Consolidates the analyses produced by specialized engineering agents into a single evidence-based engineering decision. Validates technical evidence, resolves contradictions, removes duplicate findings, evaluates implementation readiness, and authoritatively determines whether an Engineering Change Request may proceed to implementation. The Consensus Agent is the sole technical authority responsible for approving implementation within the MUF Labs Engineering Framework.",
+      "capabilities": [
+        "Analyze",
+        "Consensus",
+        "Decision",
+        "Planning"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "agent"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Engineering Change Request (ECR), PROJECT_STATE.md, project architecture documentation, engineering standards, technical constraints, specialist engineering reports, and supporting documentation.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 23246
+    },
+    {
+      "file": "ContextEngineer.agent.md",
+      "name": "Context Engineer",
+      "description": "Independently constructs, validates, optimizes and maintains the engineering execution context required before any Engineering Agent begins work. Discovers, retrieves, analyzes, validates, ranks, compresses and assembles authoritative engineering knowledge from all available project sources, ensuring every downstream Engineering Agent operates with the minimum complete context required to perform deterministic, traceable and architecturally consistent engineering work. The Context Engineer is the sole engineering authority responsible for execution context construction within the MUF Labs Engineering Framework.",
+      "capabilities": [
+        "Analyze",
+        "Context Engineering",
+        "Knowledge Retrieval",
+        "Repository Analysis",
+        "Context Validation",
+        "Dependency Analysis",
+        "Context Optimization",
+        "Information Ranking",
+        "Knowledge Compression",
+        "Engineering Discovery"
+      ],
+      "tools": [
+        "read",
+        "search"
+      ],
+      "toolsFormat": "block-list",
+      "argumentHint": "User Request, Engineering Change Request (ECR), PROJECT_STATE.md, Architecture Documentation, Engineering Standards, Architecture Decision Records (ADR), Engineering Consensus Report, Engineering Consensus Specification, Repository Structure, Source Code, Knowledge Base, Memory, Workflow State, AI Provider Information, Supporting Technical Documentation and all engineering artifacts relevant to the requested task.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 52311
+    },
+    {
+      "file": "DatabaseIntegrationEngineer.agent.md",
+      "name": "Database Integration Manager",
+      "description": "Specialist responsible for designing, implementing, validating, and optimizing integrations between the current software project and external data sources, including SQL databases, NoSQL databases, cloud databases, data warehouses, storage services, and third-party data providers.",
+      "capabilities": [
+        "Analyze",
+        "Database",
+        "SQL",
+        "Storage",
+        "Integration"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for database integration, ORM configuration, SQL, NoSQL, Supabase, Firebase, PostgreSQL, MySQL, SQL Server, MongoDB, Redis, data synchronization, migrations, ETL, connection pooling, replication, data consistency, external data providers, and database architecture decisions.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 5099
+    },
+    {
+      "file": "DevOpsEngineer.agent.md",
+      "name": "DevOps Engineer",
+      "description": "Specialist responsible for infrastructure, deployment pipelines, automation, cloud platforms, containerization, monitoring, scalability, reliability, and operational excellence for the current software project.",
+      "capabilities": [
+        "Analyze",
+        "DevOps",
+        "CI",
+        "CD",
+        "Docker",
+        "Kubernetes",
+        "Infrastructure"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for CI/CD pipelines, GitHub Actions, Azure DevOps, Docker, Kubernetes, cloud infrastructure, infrastructure as code, deployment automation, monitoring, observability, networking, Linux servers, scalability, reliability, logging, secrets management, and operational best practices.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 5439
+    },
+    {
+      "file": "DeveloperAgent.agent.md",
+      "name": "Developer Agent",
+      "description": "Implements only approved Engineering Consensus Specifications produced by the Consensus Agent. Produces deterministic, traceable, minimally scoped implementations that comply with project architecture, engineering standards, and the approved Engineering Change Request. The Developer Agent never redesigns architecture, modifies requirements, or performs independent engineering analysis.",
+      "capabilities": [
+        "Analyze",
+        "Development",
+        "Implementation",
+        "Refactoring",
+        "Debugging",
+        "Coding",
+        "TypeScript",
+        "JavaScript",
+        "NodeJS",
+        "React",
+        "API",
+        "Integration",
+        "Testing",
+        "Documentation"
+      ],
+      "tools": [
+        "read",
+        "search"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Engineering Consensus Report, Engineering Consensus Specification, Engineering Change Request (ECR), PROJECT_STATE.md, Architecture Documentation, Engineering Standards, approved supporting documentation.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 30517
+    },
+    {
+      "file": "DocumentationEngineer.agent.md",
+      "name": "Documentation Engineer",
+      "description": "Specialist responsible for maintaining the official technical knowledge of the current software project, ensuring that architecture, documentation, specifications, diagrams, and implementation remain synchronized throughout the project lifecycle.",
+      "capabilities": [
+        "Analyze",
+        "Documentation",
+        "Markdown",
+        "ArchitectureDocs"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for technical documentation, architecture documentation, API documentation, diagrams, changelogs, README files, implementation consistency, engineering standards, and knowledge management.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 7488
+    },
+    {
+      "file": "EngineeringManager.agent.md",
+      "name": "Engineering Manager",
+      "description": "Orchestrates the complete engineering lifecycle for MUF Labs projects by coordinating specialist agents, managing engineering workflows, tracking project state, and ensuring that implementation only begins after an approved Engineering Consensus Report has been issued. This agent manages the process, not the technical decisions.",
+      "capabilities": [
+        "Analyze",
+        "Planning",
+        "Coordination",
+        "Governance",
+        "Management"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "agent"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Engineering Change Request (ECR), project documentation, PROJECT_STATE.md, engineering standards, repository structure, and applicable technical documentation.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 23124
+    },
+    {
+      "file": "GraphEngineeringAgent.agent.md",
+      "name": "Graph Engineering Agent",
+      "description": "Specialist responsible for designing, analyzing, validating, and optimizing AI execution graphs, agent workflows, dependencies, parallelism, verification stages, routing, and graph-based orchestration for the current software project.",
+      "capabilities": [
+        "Analyze",
+        "GraphEngineering",
+        "AI",
+        "Agents",
+        "Workflow",
+        "Orchestration",
+        "Planning",
+        "Optimization"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for AI execution graphs, agent orchestration, graph-based workflows, dependency analysis, parallel execution, fan-out/fan-in, verification graphs, graph prompting, graph optimization, and execution topology.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 6864
+    },
+    {
+      "file": "PerformanceEngineer.agent.md",
+      "name": "Performance Engineer",
+      "description": "Specialist responsible for analyzing and optimizing the performance, scalability, efficiency, and resource utilization of the current software project while preserving its architectural integrity.",
+      "capabilities": [
+        "Analyze",
+        "Performance",
+        "Benchmark",
+        "Profiling",
+        "Optimization"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for performance analysis, profiling, scalability evaluation, memory optimization, CPU/GPU utilization, AI token efficiency, caching strategies, bottleneck identification, and resource optimization.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 7643
+    },
+    {
+      "file": "PromptEngineer.agent.md",
+      "name": "Prompt Engineer",
+      "description": "Specialist responsible for designing, evaluating, optimizing, and maintaining prompts, system instructions, reasoning strategies, and AI interactions for the current software project. Consumes the Execution Context Package produced by the Context Engineer; responsible for HOW information is presented to the model, not for WHAT information is retrieved (owned by the Context Engineer).",
+      "capabilities": [
+        "Analyze",
+        "PromptEngineering",
+        "AI",
+        "LLM"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for prompt engineering, system prompts, context engineering, AI instructions, reasoning optimization, few-shot prompting, chain-of-thought strategies, retrieval prompting, prompt templates, AI workflows, LLM evaluation, token optimization, hallucination reduction, and AI behavior improvements.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 10401
+    },
+    {
+      "file": "SecurityAuditor.agent.md",
+      "name": "Security Auditor",
+      "description": "Specialist responsible for the security architecture of the current software project, including encryption, authentication, authorization, integrity verification, secrets management, secure engineering practices, and security compliance.",
+      "capabilities": [
+        "Analyze",
+        "Security",
+        "Audit",
+        "Authentication",
+        "Authorization"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for security reviews, vulnerability assessments, encryption, authentication, authorization, API security, secret management, threat modeling, secure storage, secure coding practices, and security compliance.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 9209
+    },
+    {
+      "file": "StorageEngineer.agent.md",
+      "name": "Storage Engineer",
+      "description": "Specialist responsible for the storage architecture, persistence mechanisms, data integrity, reliability, recovery strategies, and performance of the current software project.",
+      "capabilities": [
+        "Analyze",
+        "Storage",
+        "Filesystem",
+        "Persistence"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent when working with storage systems, persistence layers, databases, file systems, containers, transaction logs, data integrity, allocation strategies, fragmentation, recovery mechanisms, or storage performance.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 8487
+    },
+    {
+      "file": "UI-UXArchitect.agent.md",
+      "name": "UI/UX Architect",
+      "description": "Specialist responsible for the overall user experience architecture, interface strategy, design systems, navigation models, interaction patterns, accessibility, usability, and long-term UX consistency of the current software project.",
+      "capabilities": [
+        "Analyze",
+        "UI",
+        "UX",
+        "Design"
+      ],
+      "tools": [
+        "read",
+        "search",
+        "edit",
+        "vscode"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Use this agent for UX architecture, navigation design, design systems, interaction patterns, information architecture, responsive design strategy, accessibility, usability, user journeys, product workflows, component consistency, UI governance, and long-term user experience planning.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 5672
+    },
+    {
+      "file": "ValidationEngineer.agent.md",
+      "name": "Validation Agent",
+      "description": "Independently validates implemented Engineering Consensus Specifications after implementation has been completed by the Developer Agent. Verifies implementation correctness, architectural compliance, engineering standard compliance, regression safety, implementation completeness, traceability, and release readiness using objective technical evidence. The Validation Agent is the sole engineering authority responsible for validating implementation quality before the Engineering Manager accepts the Engineering Change Request.",
+      "capabilities": [
+        "Analyze",
+        "Validation",
+        "Testing",
+        "QA",
+        "Verification"
+      ],
+      "tools": [
+        "read",
+        "search"
+      ],
+      "toolsFormat": "inline-array",
+      "argumentHint": "Engineering Change Request (ECR), Engineering Consensus Report, Engineering Consensus Specification, Implementation Report, PROJECT_STATE.md, Architecture Documentation, Engineering Standards, Architecture Decision Records (ADR), supporting technical documentation, repository structure, and implemented source code.",
+      "permissions": false,
+      "modelRequirements": false,
+      "bodyBytes": 37982
+    }
+  ]
+}

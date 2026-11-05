@@ -1,0 +1,195 @@
+﻿# T-BIT / Q-Vault - Project Snapshot
+
+Generated: 2026-08-11
+Revised: 2026-10-07 (synchronized against the actual repository tree; see docs/CHANGELOG.md)
+Purpose: current, curated project map for documentation and audit work.
+
+This file replaces the old raw Windows tree snapshots (`engineering_tree.txt`
+and previous `ProjectSnapshot.txt` copies). It is intentionally curated: it
+lists the active source areas without treating runtime data, generated builds,
+or deleted legacy documents as canonical documentation.
+
+## Canonical Documentation
+
+- `docs/README.md` - documentation index.
+- `docs/T-BIT_BOOK.md` - main technical book and source of product history.
+- `docs/T-BIT_PHASE_SUMMARY_2026-08-11.md` - current phase summary.
+- `docs/T-BIT_EVALUACION_FINAL_2026-08-11.md` - updated evaluation replacing old `Evaluacion` files.
+- `docs/ProjectSnapshot.txt` - this project map.
+- `docs/CHANGELOG.md` - project change log (single source of truth for changes).
+- `PLAN.md`, `DECISIONES.md`, `INFORME_FINAL.md` (repo root) - completion plan,
+  autonomous decisions record and final report of the 2026-10-07 pass.
+
+## Application Entry Points
+
+- `server.ts` - local Express API, storage endpoints, AI providers, Q-Vault services.
+- `index.ts` - Node-side 1:1 storage demo entry point.
+- `src/main.tsx` - React bootstrap.
+- `src/App.tsx` - main Q-Vault / Quantum Engine frontend shell. This file is a
+  deliberate monolith that contains, among others, the settings modal, first-run
+  setup / onboarding, Q-Vault live map, chat console, semantic search controls and
+  code graph controls that were previously listed as separate components.
+- `src/index.css` - global UI styling.
+
+## Storage Core
+
+- `TBitFileSystem.ts` - physical framed storage, V/Anti-V write/read behavior.
+- `TBitStorageService.ts` - high-level storage service.
+- `AllocationMap.ts` - occupied-region tracking and collision/overlap protection.
+- `EncryptionKeyManager.ts` - AES-GCM key handling and migration support.
+- `textEncoding.ts` - UTF-8/Unicode-safe encoding helpers.
+- `tbitRuntimePaths.ts` - runtime path helpers (spaces, vault roots).
+- `containerHealth.ts` - health metrics.
+- `healthReconciliation.ts` - health/index reconciliation helpers.
+- `networkSync.ts` - network state, record export/import and anti-entropy.
+
+## AI / Orchestration
+
+- `AiProvider.ts` - provider contract.
+- `AiProviderFactory.ts` - provider selection (10 provider descriptors).
+- `OpenAICompatibleProvider.ts` - OpenAI-compatible provider implementation.
+- `UniversalAiProviders.ts` - universal provider definitions.
+- `TBitAiBridge.ts` - T-BIT tool bridge for AI (legacy prompt/tools).
+- `TBitChatEngine.ts` - chat orchestration (SIMPLE route with 2-step tool loop).
+- `TBitLocalToolExecutor.ts` - local T-BIT tool execution (7 tools).
+- `TBitPrompts.ts` - system prompt helpers.
+- `TBitToolSchemas.ts` - tool schema definitions (includes tbitSymbolicTools).
+- `TBitSymbolicBridge.ts` - symbolic oracle bridge and `operar_simbolicamente` schema.
+- `aiPermissions.ts` - AI permission policy.
+- `guardianObserver.ts` - Guardian Observer analysis layer.
+- `webResearch.ts` - T-BIT web research tooling.
+
+## Memory, Query, and Semantic Layers
+
+- `memoryCore.ts` - persistent memory records, links, backlinks.
+- `queryIndex.ts` - logical query index.
+- `semanticIndex.ts` - semantic index/embedding-oriented metadata.
+- `documentQa.ts` - document question-answer retrieval helpers.
+- `semanticCompression.ts` - semantic compression/archive helpers.
+- `computableMemory.ts` - computable memory structures.
+- `symbolicEngine.ts` - symbolic/math-oriented support.
+- `temporalSemantics.ts` - temporal interpretation helpers.
+
+## Importers and Extractors
+
+- `markdownBridge.ts` - Markdown import and chunking.
+- `universalDocumentBridge.ts` - general document import bridge.
+- `documentExtractors.ts` - text extraction for supported document types.
+- `binaryAssetBridge.ts` - binary asset bridge.
+- `assetManager.ts` - asset indexing/reconstruction/deletion.
+- `codeGraphExtractor.ts` - source-code structure extractor.
+
+## Frontend Components
+
+- `src/components/AiPermissionsPanel.tsx`
+- `src/components/AssetManagerPanel.tsx`
+- `src/components/BinaryAssetPanel.tsx`
+- `src/components/ContainerHealthPanel.tsx`
+- `src/components/EncryptionKeyPanel.tsx`
+- `src/components/EnhancedSceneGuides.tsx`
+- `src/components/GuardianObserverPanel.tsx`
+- `src/components/MarkdownImportPanel.tsx`
+- `src/components/MemoryGraphPanel.tsx`
+- `src/components/NetworkTopologyView.tsx`
+- `src/components/QuantumTelemetryRay.tsx`
+- `src/components/QueryIndexPanel.tsx`
+- `src/components/TBitNetworkPanel.tsx`
+- `src/components/WikiLinksMesh.tsx`
+- `src/CognitiveQuantumRay.tsx`, `src/TBitCognitiveTelemetry.tsx` - cognitive telemetry visuals.
+
+## Frontend Clients, State and Helpers
+
+- `src/tbitApiHeaders.ts` - local API key / user / vault headers helper.
+- `src/tbitChatClient.ts`
+- `src/aiPermissionsClient.ts`
+- `src/assetManagerClient.ts`
+- `src/binaryAssetClient.ts`
+- `src/containerHealthClient.ts`
+- `src/documentQaClient.ts`
+- `src/encryptionKeyClient.ts`
+- `src/guardianObserverClient.ts`
+- `src/markdownBridgeClient.ts`
+- `src/memoryCoreClient.ts`
+- `src/networkSyncClient.ts`
+- `src/queryIndexClient.ts`
+- `src/semanticCompressionClient.ts`
+- `src/semanticIndexClient.ts`
+- `src/universalDocumentClient.ts`
+- `src/webResearchClient.ts`
+- `src/fractalProjection.ts`, `src/temporalSemantics.ts`, `src/textEncoding.ts`,
+  `src/computableMemory.ts`, `src/symbolicEngine.ts` - frontend-side helper copies.
+- `src/store/useTBitStore.ts`, `src/store/useTBitCognitiveStore.ts` - frontend state stores.
+
+## Tests
+
+- `tests/TBitStorageService.smoke.test.ts` - storage engine smoke contract.
+- `tests/TBitChatEngine.parity.test.ts` - SIMPLE chat route parity contract.
+- `tests/AiProvider.deterministic.test.ts` - deterministic provider contract.
+- `tests/agentSpecs.inventory.test.ts` - `.github/agents` frontmatter contract (18 specs).
+- `vitest.config.ts` - vitest harness configuration (serialized, forks pool).
+- Run with: `npm test` (or `npm run test:watch`).
+
+## Scripts and Configuration
+
+- `package.json`, `package-lock.json`
+- `tsconfig.json` (frontend, includes `vite/client` types), `tsconfig.node.json` (backend).
+- `vite.config.ts`, `vitest.config.ts`
+- `postcss.config.js`, `tailwind.config.js`
+- `scripts/setup-secret.cjs` - generates `.env` secrets and local API key.
+- `scripts/dev-vite.cjs` - vite dev launcher.
+- `scripts/agent-inventory.cjs` - regenerates the agent inventory JSON
+  (`npm run agents:inventory`).
+- `.env.example`, `.env.network.example` - environment templates.
+
+## Engineering Records
+
+The `engineering/` directory contains engineering change requests, audit notes,
+reports, and workflow artifacts. These are supporting records, not the canonical
+book or current summary. `engineering/Ai_evolution_roadmap.md` is the governing
+AI evolution roadmap; `engineering/reports/AI-EVOLUTION-BASELINE.md` is the
+verified Phase 0 baseline (with a 2026-10-07 verification addendum).
+
+`.github/agents/` contains 18 declarative `.agent.md` specifications
+(MUF Labs Engineering Framework). They are specifications, not a runtime.
+
+## Runtime and Generated Data
+
+The following categories are runtime/generated and should not be treated as
+canonical documentation:
+
+- `data/*.tbit`, `data/*.json`, `data/spaces/` (per-user vault spaces)
+- `*.wal.jsonl`, `*.meta.json`, `*.tbit.lock`
+- `dist/`, `node_modules/`, `replica/`, `video_frames/`
+- temporary imports, demos, and generated archives.
+
+## Documentation Policy
+
+Current documentation source of truth:
+
+1. `docs/T-BIT_BOOK.md`
+2. `docs/T-BIT_PHASE_SUMMARY_2026-08-11.md`
+3. `docs/T-BIT_EVALUACION_FINAL_2026-08-11.md`
+4. `docs/ProjectSnapshot.txt`
+5. `docs/CHANGELOG.md`
+
+Old duplicated tree snapshots should not be edited or maintained.
+`engineering/engineering_tree.txt` remains only as a historical artifact.
+
+## 2026-08-11 - UI language and encoding pass
+
+- Fixed mojibake in `src/App.tsx` visible strings.
+- Normalized several Q-Vault labels from English to Spanish.
+- Kept technical identifiers unchanged where required, e.g. `America/Bogota`.
+- Verified with mojibake search, `npm run build`, and `npm run logic:build`.
+
+[2026-08-11] UI Settings language normalization: modal de configuración coherente en español, selector persistente con English pendiente, verificado con npm run build y npm run logic:build.
+
+## 2026-10-07 - Snapshot resync
+
+- This snapshot was regenerated against the actual repository tree:
+  removed references to files that do not exist (e.g. `eslint.config.js`, old
+  client names such as `assetClient.ts`, and components that live inside
+  `src/App.tsx`), and added missing areas (`tests/`, `vitest.config.ts`,
+  `scripts/agent-inventory.cjs`, the 18th agent spec, `networkSync.ts`,
+  `data/spaces/` runtime exclusion).
+- See `docs/CHANGELOG.md` for the full change record.

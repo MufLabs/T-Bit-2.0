@@ -1,0 +1,63 @@
+{
+  "name": "tbit-container",
+  "version": "1.1.0",
+  "description": "Gestor de contenedores .tbit con interfaz visual 3D",
+  "main": "dist/index.js",
+  "scripts": {
+    "setup:secret": "node scripts/setup-secret.cjs",
+    "dev": "node scripts/dev-vite.cjs",
+    "dev:api": "tsx server.ts",
+    "dev:all": "npm run setup:secret && concurrently \"npm run dev:api\" \"npm run dev\"",
+    "ai:demo": "tsx ai-bridge-demo.ts",
+    "symbolic:demo": "tsx symbolic-demo.ts",
+    "compression:demo": "tsx compression-demo.ts",
+    "network:demo": "tsx network-sync-demo.ts",
+    "memory:demo": "tsx memory-core-demo.ts",
+    "markdown:demo": "tsx markdown-demo.ts",
+    "computable:demo": "tsx computable-demo.ts",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "logic:build": "tsc --project tsconfig.node.json",
+    "logic:start": "npm run logic:build && node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "agents:inventory": "node scripts/agent-inventory.cjs"
+  },
+  "dependencies": {
+    "@google/genai": "^2.8.0",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.17.10",
+    "cors": "^2.8.5",
+    "express": "^4.18.3",
+    "lucide-react": "^1.14.0",
+    "mammoth": "^1.12.0",
+    "openai": "^6.45.0",
+    "pdf-parse": "^2.4.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "read-excel-file": "^9.0.10",
+    "three": "^0.171.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.30",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.4.5",
+    "vite": "^6.0.7",
+    "vitest": "^3.2.4"
+  },
+  "allowScripts": {
+    "@google/genai@2.8.0": true,
+    "protobufjs@7.6.2": true,
+    "esbuild@0.27.7": true,
+    "esbuild@0.25.12": true
+  }
+}

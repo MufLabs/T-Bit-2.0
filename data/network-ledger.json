@@ -1,0 +1,27 @@
+{
+  "protocolVersion": "tbit-sync-v1",
+  "nodeId": "nodo_espejo_01",
+  "records": [
+    {
+      "key": "Usuario::Preferencias::Mauricio",
+      "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "sourceNodeId": "nodo_local_bogota",
+      "importedAt": "2026-05-23T07:41:37.769Z",
+      "status": "NOOP_ALREADY_SYNCED"
+    },
+    {
+      "key": "Usuario::Preferencias::TemaVisual",
+      "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "sourceNodeId": "nodo_espejo_01",
+      "importedAt": "2026-05-23T07:45:10.126Z",
+      "status": "NOOP_ALREADY_SYNCED"
+    },
+    {
+      "key": "Usuario::Preferencias::TemaVisual",
+      "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "sourceNodeId": "nodo_local_bogota",
+      "importedAt": "2026-05-23T07:45:32.498Z",
+      "status": "NOOP_ALREADY_SYNCED"
+    }
+  ]
+}

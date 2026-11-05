@@ -1,0 +1,17 @@
+{
+  "version": "tbit-ai-permissions-v1",
+  "updatedAt": "2026-06-11T05:21:25.170Z",
+  "canRead": true,
+  "canWrite": true,
+  "canDelete": false,
+  "canSearch": true,
+  "canCompute": true,
+  "requireDeleteConfirmation": true,
+  "maxWriteBytes": 65536,
+  "allowedKeyPrefixes": [],
+  "blockedKeyPrefixes": [
+    "Sistema::Secretos",
+    "Security::Secrets",
+    "TBIT::Secrets"
+  ]
+}

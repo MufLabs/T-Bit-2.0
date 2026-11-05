@@ -1,0 +1,50 @@
+
+# ==========================
+# Dependencies
+# ==========================
+node_modules/
+
+# ==========================
+# Build output
+# ==========================
+dist/
+build/
+
+# ==========================
+# Environment
+# ==========================
+.env
+.env.*
+
+# ==========================
+# Logs
+# ==========================
+logs/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# ==========================
+# Operating System
+# ==========================
+.DS_Store
+Thumbs.db
+
+# ==========================
+# VS Code
+# ==========================
+.vscode/*.log
+
+# ==========================
+# Temporary files
+# ==========================
+*.tmp
+*.cache
+
+# ==========================
+# T-BIT runtime artifacts
+# ==========================
+# User vault spaces created at runtime (per-user containers, indices, replicas)
+data/spaces/
+# Advisory lock files held by a running T-BIT server
+*.tbit.lock
