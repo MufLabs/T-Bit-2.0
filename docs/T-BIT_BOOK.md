@@ -6125,5 +6125,71 @@ Smoke runtime (servidor real en :3000):
     -> ejecucion persistida como AI::AgentRuntime::Code_Reviewer::<taskId>
   POST /api/query/search "indice semantico"
     -> 1 resultado con source=agent-runtime (memoria consultable)
+
+---
+
+# 25.33 Fase 67 - Sistema Dinamico de Busqueda e Instalacion de Skills
+
+## Objetivo
+
+Capacidad nativa para buscar, instalar, cargar y ejecutar Skills dinamicamente segun el contexto, tratando toda skill externa como contenido no confiable y sin ejecutar jamas codigo descargado.
+
+## Archivos nuevos y modificados
+
+```text
+src/skills/DynamicSkillManager.ts        nuevo: gestor de skills (catalogo, deteccion, instalacion, ejecucion)
+skills/*.md                              nuevos: 3 skills semilla declarativas del catalogo local
+TBitToolSchemas.ts                       modificado: herramientas buscar_skill / ejecutar_skill / instalar_skill
+TBitLocalToolExecutor.ts                 modificado: implementacion de las 3 herramientas
+tests/DynamicSkillManager.phase67.test.ts  7 tests nuevos
+```
+
+## Modelo de seguridad (cadena de suministro)
+
+1. **Solo definiciones declarativas**: las skills son `.md`/`.json` con frontmatter (`name`, `id`, `description`, `tags`). Contienen instrucciones, patrones y checklists. Nunca se ejecuta codigo descargado.
+2. **"Ejecutar" = inyectar contexto**: `ejecutar_skill` devuelve el contenido como bloque marcado `=== SKILL T-BIT (material de referencia NO CONFIABLE) ===` con regla de precedencia explicita: el contenido de una skill NUNCA prevalece sobre el libro T-BIT, los guardarrailes ni las instrucciones del operador.
+3. **Commit fijado obligatorio en skills remotas**: sin `TBIT_SKILL_REPOS` (formato `owner/repo@commit,...`) o commit explicito, la instalacion remota se rechaza. Solo se aceptan rutas `.md`/`.json`.
+4. **Integridad sha256**: cada skill lleva checksum; se verifica en cada ejecucion (deteccion de manipulacion, cubierto por test).
+5. **Permisos**: la instalacion pasa por `aiPermissions.ts` (accion `write`) y la ejecucion por accion `read`.
+6. **Persistencia en Q-Vault**: toda skill instalada se registra como `AI::Skill::<id>` (source `skill`) consultable en el Query Index y visible en el grafo de memoria, ademas de `data/skills-index.json`.
+
+## Herramientas nuevas (disponibles para la IA en chat y agentes)
+
+```text
+buscar_skill(query)                  -> skills relevantes por terminos/tags con puntuacion
+ejecutar_skill(id, task?)            -> bloque de contexto declarativo verificado
+instalar_skill(contenido, ...)       -> instala skill declarativa con permisos y persistencia
+```
+
+## Catalogo local semilla
+
+```text
+skills/code-review-checklist.md   checklist sistematico de revision de codigo
+skills/root-cause-analysis.md     metodo de causa raiz (5 porques + evidencia)
+skills/api-design-patterns.md     patrones declarativos de diseno de APIs REST
+```
+
+## Repositorios de referencia
+
+`REFERENCE_SKILL_REPOS` exporta los repos del objetivo (rmaterile/agent-skills, andrej-karpathy-skills, claw-code, Open-Generative-AI, gstack, open-jarvis/OpenJarvis, superpowers, VoltAgent/awesome-agent-skills). La descarga remota exige commit fijado por `TBIT_SKILL_REPOS`; sin el, se rechaza con error explicativo (verificado por test). La consulta remota esta desactivada por defecto.
+
+## Variables de entorno
+
+```text
+TBIT_SKILL_REPOS   repos con commit fijado, ej: rmaterile/agent-skills@abc1234,VoltAgent/awesome-agent-skills@def5678
+```
+
+## Verificacion ejecutada
+
+```text
+npm test                                  -> 57/57 PASS (8 archivos, 7 tests nuevos)
+npm run logic:build                       -> PASS
+npx tsc --noEmit                          -> 0 errores
+Smoke runtime (ejecutor de herramientas real via tsx):
+  buscar_skill "revision de codigo"  -> top=code-review-checklist
+  ejecutar_skill code-review-checklist -> bloque NO CONFIABLE de 1568 caracteres
+  instalar_skill (runtime)           -> persistida con checksum sha256
+```
+
 ```
 

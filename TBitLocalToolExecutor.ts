@@ -5,6 +5,7 @@ import { searchQueryIndex } from "./queryIndex";
 import { operarSimbolicamente } from "./TBitSymbolicBridge";
 import { normalizeTBitKey } from "./textEncoding";
 import { researchWebPage } from "./webResearch";
+import { getDynamicSkillManager } from "./src/skills/DynamicSkillManager";
 
 type DynamicStorage = {
   inject?: (key: string, payload: string) => Promise<unknown>;
@@ -136,6 +137,38 @@ export function createTBitLocalToolExecutor(storage: unknown) {
       const result = await callDelete(dynamicStorage, key);
       await removeMemoryIndexRecord(key);
       return result;
+    }
+
+    // Fase 67 — Skills dinamicas (contenido declarativo, nunca codigo ejecutable).
+    if (toolName === "buscar_skill") {
+      const query = typeof args.query === "string" ? args.query : "";
+      if (!query.trim()) throw new Error("buscar_skill requiere query.");
+      const manager = getDynamicSkillManager();
+      if (manager.listSkills().length === 0) {
+        await manager.loadLocalCatalog();
+      }
+      return { ok: true, results: manager.searchSkills(query) };
+    }
+
+    if (toolName === "ejecutar_skill") {
+      const id = typeof args.id === "string" ? args.id : "";
+      if (!id.trim()) throw new Error("ejecutar_skill requiere id.");
+      const manager = getDynamicSkillManager();
+      if (manager.listSkills().length === 0) {
+        await manager.loadLocalCatalog();
+      }
+      return await manager.executeSkill(id, typeof args.task === "string" ? args.task : undefined);
+    }
+
+    if (toolName === "instalar_skill") {
+      const contenido = typeof args.contenido === "string" ? args.contenido : "";
+      if (!contenido.trim()) throw new Error("instalar_skill requiere contenido declarativo.");
+      const manager = getDynamicSkillManager();
+      return await manager.installSkill({
+        raw: contenido,
+        source: "local",
+        fallbackId: "skill-importada",
+      });
     }
 
     throw new Error(`Herramienta T-BIT no soportada: ${toolName}`);

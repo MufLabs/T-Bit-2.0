@@ -122,4 +122,51 @@ export const tbitCoreTools: AiToolSchema[] = [
     type: "function" as const,
     function: tool,
   })) satisfies AiToolSchema[]),
+  {
+    type: "function",
+    function: {
+      name: "buscar_skill",
+      description: "Busca en el catalogo de Skills T-BIT habilidades declarativas relevantes para una tarea.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Tarea o tematica para encontrar skills relevantes." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "ejecutar_skill",
+      description: "Carga una Skill declarativa instalada y devuelve su contenido como contexto de referencia (no ejecuta codigo).",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Id de la skill instalada." },
+          task: { type: "string", description: "Tarea donde se aplicara la skill." },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "instalar_skill",
+      description: "Instala una skill declarativa (.md/.json) desde contenido local o desde un repositorio de referencia con commit fijado. Pasa por la politica de permisos IA.",
+      parameters: {
+        type: "object",
+        properties: {
+          contenido: { type: "string", description: "Contenido declarativo completo de la skill (con frontmatter name/id/description/tags)." },
+          repo: { type: "string", description: "Repositorio origen (owner/repo) si es remota." },
+          ruta: { type: "string", description: "Ruta del archivo dentro del repo si es remota." },
+          commit: { type: "string", description: "Commit fijado (obligatorio para skills remotas)." },
+        },
+        required: ["contenido"],
+      },
+    },
+  },
 ];
+
