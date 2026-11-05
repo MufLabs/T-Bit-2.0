@@ -5971,3 +5971,80 @@ Smoke runtime (servidor real en :3000):
   GET  /api/agents/events   -> journal con eventos del enjambre
 ```
 
+
+---
+
+# 25.31 Fase 65 - Motor de Conectores IA con Failover Continuo
+
+## Objetivo
+
+Ninguna solicitud de chat debe fallar por cuota agotada, caida de un proveedor, timeout o clave invalida. La cadena de proveedores conmuta en caliente, monitorea latencia/disponibilidad y recupera automaticamente los conectores caidos tras un enfriamiento (cooldown).
+
+## Archivos nuevos y modificados
+
+```text
+FallbackProviderChain.ts            nuevo: decorador AiProvider con failover, cooldown y monitoreo
+AiProviderFactory.ts                modificado: conector OpenRouter + createFallbackProviderChain()
+server.ts                           modificado: /api/ai/chat usa la cadena; nuevo endpoint de salud
+tests/FallbackProviderChain.phase65.test.ts  12 tests nuevos
+```
+
+## Como funciona
+
+### Cadena de failover
+
+`FallbackProviderChain` implementa la interfaz `AiProvider`, por lo que es transparente para `TBitChatEngine` y para el runtime de agentes. Ante cada solicitud recorre la cadena en orden de prioridad, omitiendo proveedores en enfriamiento:
+
+1. Proveedor solicitado explicitamente por el usuario (si es resoluble).
+2. Proveedores declarados en `TBIT_AI_FALLBACK_CHAIN` (ids separados por coma).
+3. Proveedor determinista local T-BIT como ultimo eslabon: el chat nunca falla por cuotas remotas.
+
+### Clasificacion de fallos y enfriamiento
+
+| Fallo | Deteccion | Cooldown |
+|---|---|---|
+| Cuota / rate limit | HTTP 429, `resource_exhausted`, `quota`, `rate limit` | 5 minutos |
+| Clave invalida | HTTP 401/403, `unauthorized`, `invalid api key` | 5 minutos |
+| Servidor | HTTP 500/502/503/504, `overloaded`, `bad gateway` | 30 segundos |
+| Timeout | exceso de `requestTimeoutMs` (default 60 s) | 30 segundos |
+| Red | `fetch failed`, `econnrefused`, `enotfound`, `econnreset` | 60 segundos |
+
+Al expirar el enfriamiento el proveedor se reintenta automaticamente (recuperacion en caliente verificada por test).
+
+### Monitoreo
+
+`GET /api/ai/providers/health` reporta por proveedor: disponibilidad, enfriamiento restante, ultimo error, contadores de peticiones/fallos y latencia (ultima y promedio de las ultimas 50 muestras).
+
+## Conector OpenRouter nuevo
+
+Se añadio `openrouter` al catalogo (`OpenAI-Compatible`, base `https://openrouter.ai/api/v1`, modelo por defecto `openrouter/auto`). Variables: `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_BASE_URL`. Los endpoints gratuitos de OpenRouter se usan mediante este conector o mediante proveedores personalizados de `Ajustes > AI providers` (Fase 45).
+
+## Variables de entorno
+
+```text
+TBIT_AI_FALLBACK_CHAIN   cadena de failover, ej: gemini,openrouter,grok,qwen,ollama,lmstudio
+OPENROUTER_API_KEY       clave de OpenRouter (opcional)
+OPENROUTER_MODEL         modelo OpenRouter (opcional, default openrouter/auto)
+OPENROUTER_BASE_URL      base URL alternativa (opcional)
+```
+
+Los proveedores sin clave/base URL configurada se omiten de la cadena sin generar error. La lista es totalmente configurable y no depende de ningun proveedor en particular.
+
+## No regresion
+
+- `createAiProviderRuntime()` y `createAiProviderRuntimeFromConfig()` conservan su comportamiento y API publica.
+- Sin claves remotas configuradas, el chat sigue funcionando con el proveedor determinista (verificado en runtime).
+- No se añadieron dependencias nuevas; no se modifico el motor `.tbit`.
+
+## Verificacion ejecutada
+
+```text
+npm test                                  -> 45/45 PASS (6 archivos, 12 tests nuevos)
+npm run logic:build                       -> PASS
+npx tsc --noEmit                          -> 0 errores
+Smoke runtime (servidor real en :3000):
+  GET  /api/ai/providers/health -> cadena con eslabon determinista disponible
+  POST /api/ai/chat con provider "openai" sin clave -> 200 OK, respuesta del
+       eslabon determinista (failover transparente, sin error HTTP)
+```
+

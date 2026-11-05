@@ -1,6 +1,7 @@
 ﻿import { AiProvider, DeterministicTBitProvider } from "./AiProvider";
 import { OpenAICompatibleProvider } from "./OpenAICompatibleProvider";
 import { AnthropicProvider, GeminiProvider, providerLabel } from "./UniversalAiProviders";
+import { FallbackProviderChain } from "./FallbackProviderChain";
 
 export type AiProviderRuntime = {
   provider: AiProvider;
@@ -125,6 +126,16 @@ const AI_PROVIDER_CATALOG: AiProviderDescriptor[] = [
     defaultModel: "model",
     requiresApiKey: true,
     requiresBaseUrl: true,
+    protocol: "openai-compatible",
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    mode: "remote",
+    defaultModel: "openrouter/auto",
+    defaultBaseUrl: "https://openrouter.ai/api/v1",
+    requiresApiKey: true,
+    requiresBaseUrl: false,
     protocol: "openai-compatible",
   },
 ];
@@ -425,6 +436,75 @@ export function createAiProviderRuntimeFromConfig(config?: AiProviderRuntimeConf
     });
   }
 
+  if (requested === "openrouter") {
+    const baseUrl = config?.baseUrl ?? env("OPENROUTER_BASE_URL") ?? "https://openrouter.ai/api/v1";
+    return openAiCompatibleRuntime({
+      id: "openrouter",
+      label: "OpenRouter",
+      apiKey: required(config?.apiKey ?? env("OPENROUTER_API_KEY") ?? legacyKey, "OpenRouter", "API key"),
+      model: config?.model ?? env("OPENROUTER_MODEL") ?? legacyModel ?? "openrouter/auto",
+      baseUrl,
+      mode: isLocalBaseUrl(baseUrl) ? "local" : "remote",
+    });
+  }
+
   throw new Error(`Proveedor IA no soportado: ${requested}`);
+}
+
+/**
+ * Fase 65 — Cadena de failover continuo entre proveedores IA.
+ *
+ * Construye una `FallbackProviderChain` a partir de:
+ *  1. la cadena declarada en `TBIT_AI_FALLBACK_CHAIN` (ids separados por coma,
+ *     en orden de prioridad; ids no configurados se omiten sin fallar),
+ *  2. el runtime solicitado explicitamente (opcional),
+ *  3. el proveedor determinista local como ultimo eslabon (D-006), de modo que
+ *     el chat nunca falla por cuotas agotadas de proveedores remotos.
+ */
+export function createFallbackProviderChain(options: {
+  requested?: AiProviderRuntimeConfig;
+  chain?: string[];
+  cooldownMs?: number;
+  quotaCooldownMs?: number;
+  requestTimeoutMs?: number;
+  onFailover?: (info: { from: string; to: string | null; reason: string }) => void;
+} = {}): FallbackProviderChain {
+  const runtimes: AiProviderRuntime[] = [];
+  const seen = new Set<string>();
+
+  const pushRuntime = (config: AiProviderRuntimeConfig): void => {
+    try {
+      const runtime = createAiProviderRuntimeFromConfig(config);
+      if (!seen.has(runtime.id)) {
+        seen.add(runtime.id);
+        runtimes.push(runtime);
+      }
+    } catch {
+      // Proveedor sin clave/base URL configurada: se omite de la cadena.
+    }
+  };
+
+  if (options.requested?.id) {
+    pushRuntime(options.requested);
+  }
+
+  const chainIds = (
+    options.chain ??
+    (env("TBIT_AI_FALLBACK_CHAIN") ?? "").split(",").map((id) => id.trim()).filter(Boolean)
+  );
+  for (const id of chainIds) {
+    pushRuntime({ id });
+  }
+
+  if (!seen.has("deterministic")) {
+    runtimes.push(deterministicRuntime());
+  }
+
+  return new FallbackProviderChain(runtimes, {
+    cooldownMs: options.cooldownMs,
+    quotaCooldownMs: options.quotaCooldownMs,
+    requestTimeoutMs: options.requestTimeoutMs,
+    onFailover: options.onFailover,
+  });
 }
 

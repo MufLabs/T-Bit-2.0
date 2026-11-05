@@ -29,7 +29,7 @@
 |---|---|---|---|
 | T0 | Gobernanza | Rama, PLAN, DECISIONES, commit base | ✅ Hecha |
 | T1 | Objetivo 1 | Runtime multi-agente: `AgentSpecLoader`, `AgentEventBus`, `AgentOrchestrator` (pool asíncrono, sin dependencias nuevas), endpoints `/api/agents/*`, tests | ✅ Hecha (Fase 64) |
-| T2 | Objetivo 2 | `FallbackProviderChain` en `AiProviderFactory.ts`/`UniversalAiProviders.ts`: failover 429/5xx/timeout/cuota, cooldown, monitoreo de latencia, cadena configurable por env | Pendiente |
+| T2 | Objetivo 2 | `FallbackProviderChain` en `AiProviderFactory.ts`/`UniversalAiProviders.ts`: failover 429/5xx/timeout/cuota, cooldown, monitoreo de latencia, cadena configurable por env | ✅ Hecha (Fase 65) |
 | T3 | Objetivo 3 | Memoria evolutiva: persistencia automática de ejecuciones de agentes/consenso en `memoryCore` + verificación cruzada con `documentQa`/`queryIndex` antes de respuestas definitivas | Pendiente |
 | T4 | Objetivo 4 | `DynamicSkillManager.ts`: catálogo local + repos de referencia, skills declarativas (.md/.json), integridad sha256 + commit fijado, permisos vía `aiPermissions.ts`, integración con `TBitToolSchemas.ts`/`TBitLocalToolExecutor.ts` | Pendiente |
 | T5 | Objetivos 5–6 | UX Q-Vault OS: indicadores de razonamiento multi-agente/failover, pulido visual, paridad multiplataforma dentro del stack | Pendiente |
@@ -53,7 +53,7 @@ Cada tanda termina con: `npm test` en PASS, `npx tsc --noEmit` limpio, commit at
 
 ## 3. Estado para retomar (se actualiza al cierre de cada tanda)
 
-- **Última tanda completada:** T1 — Runtime multi-agente (Fase 64). 33/33 tests PASS, `logic:build` y `tsc --noEmit` limpios, smoke E2E real de `/api/agents`, `/api/agents/run`, `/api/agents/swarm` y `/api/agents/events` contra servidor en :3000. Libro actualizado (sección 25.30).
-- **Siguiente acción:** implementar T2 (Objetivo 2): `FallbackProviderChain` en `AiProviderFactory.ts`/`UniversalAiProviders.ts` con failover 429/5xx/timeout/cuota, cooldown y monitoreo; tests con providers falsos; integración transparente en `/api/ai/chat`.
+- **Última tanda completada:** T2 — Failover de proveedores IA (Fase 65). 45/45 tests PASS, smoke E2E real: `/api/ai/providers/health` y `/api/ai/chat` con failover transparente a determinista. Libro actualizado (sección 25.31).
+- **Siguiente acción:** implementar T3 (Objetivo 3): persistencia automática de ejecuciones de agentes/consenso en `memoryCore` (sources `agent-runtime`/`agent-consensus`) + verificación cruzada con `searchQueryIndex`/`documentQa` antes de consolidar respuestas.
 - **Comandos de verificación:** `npm test`, `npm run logic:build`, `npx tsc --noEmit`, `npm run build`.
 - **Nota de entorno:** en PowerShell, `npm ... 2>&1` convierte los avisos de stderr de npm en errores falsos; ejecutar los comandos npm sin redirección.

@@ -5,6 +5,7 @@ import {
   AiProviderRuntimeConfig,
   createAiProviderRuntime,
   createAiProviderRuntimeFromConfig,
+  createFallbackProviderChain,
   getAiProviderCatalog,
 } from "./AiProviderFactory";
 import { procesarMensajeUsuario, resetTBitChatSession } from "./TBitChatEngine";
@@ -1792,6 +1793,24 @@ app.get("/api/ai/providers", requireSymbolicApiKey, async (_req, res) => {
   });
 });
 
+// Fase 65 — Salud de la cadena de failover de proveedores IA.
+app.get("/api/ai/providers/health", requireSymbolicApiKey, async (_req, res) => {
+  try {
+    const chain = createFallbackProviderChain();
+    res.json({
+      ok: true,
+      chainSize: chain.size,
+      fallbackChainEnv: process.env.TBIT_AI_FALLBACK_CHAIN ?? null,
+      providers: chain.getHealth(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Fallo leyendo la salud de proveedores IA.",
+    });
+  }
+});
+
 app.post("/api/ai/provider/test", requireSymbolicApiKey, async (req, res) => {
   try {
     const runtime = createAiProviderRuntimeFromConfig(providerConfigFromRequest(req.body?.provider));
@@ -1917,7 +1936,18 @@ app.post("/api/web/research", requireSymbolicApiKey, async (req, res) => {
 app.post("/api/ai/chat", requireSymbolicApiKey, async (req, res) => {
   try {
     const { sessionId, message, userId } = req.body ?? {};
-    const requestProvider = createAiProviderRuntimeFromConfig(providerConfigFromRequest(req.body?.provider));
+    const requestedConfig: AiProviderRuntimeConfig = providerConfigFromRequest(req.body?.provider) ?? {};
+    // Fase 65: el chat usa la cadena de failover continuo. El proveedor
+    // solicitado tiene prioridad; si agota cuota, falla o expira, la cadena
+    // conmuta en caliente y siempre conserva el proveedor determinista local.
+    const fallbackChain = createFallbackProviderChain({ requested: requestedConfig });
+    const requestProvider: AiProviderRuntime = {
+      provider: fallbackChain,
+      id: requestedConfig.id ?? "fallback-chain",
+      label: fallbackChain.size > 1 ? `T-BIT Failover (${fallbackChain.size} proveedores)` : "T-BIT Local",
+      model: requestedConfig.model ?? "auto",
+      mode: "remote",
+    };
     const normalizedSessionId = typeof sessionId === "string" && sessionId.trim() ? sessionId.trim() : "default";
     const normalizedUserId = typeof userId === "string" && userId.trim() ? normalizeTBitKey(userId) : undefined;
     if (typeof message !== "string" || !message.trim()) {
