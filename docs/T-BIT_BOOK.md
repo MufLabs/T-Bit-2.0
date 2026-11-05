@@ -6048,3 +6048,82 @@ Smoke runtime (servidor real en :3000):
        eslabon determinista (failover transparente, sin error HTTP)
 ```
 
+
+---
+
+# 25.32 Fase 66 - Aprendizaje Continuo y Memoria Permanente en Q-Vault
+
+## Objetivo
+
+Que toda la actividad del runtime multi-agente (ejecuciones, bitacoras de consenso, verificaciones) se escriba automaticamente en el contenedor fisico de Q-Vault, que los agentes consulten ese conocimiento acumulado antes de ejecutarse, y que las respuestas consolidadas se verifiquen contra el vault antes de entregarse (autocorreccion sin alucinacion).
+
+## Archivos nuevos y modificados
+
+```text
+src/agents/AgentMemoryBridge.ts   nuevo: puente runtime-agentes <-> memoryCore/queryIndex
+server.ts                         modificado: /api/agents/run y /api/agents/swarm integrados
+tests/AgentMemoryBridge.phase66.test.ts  5 tests nuevos
+```
+
+## Como funciona
+
+### Escritura automatica en Q-Vault
+
+Cada ejecucion de agente se persiste via `indexExternalMemoryRecord()` (el mismo pipeline determinista de Memory Core: checksum SHA-256, wikilinks, sincronizacion automatica de `memory-core-index.json` y `query-index.json`):
+
+```text
+AI::AgentRuntime::<Agente>::<taskId>   source=agent-runtime
+AI::AgentConsensus::<taskId>           source=agent-consensus
+```
+
+La bitacora de consenso enlaza mediante wikilinks (`[[AI::AgentRuntime::...]]`) a cada ejecucion del enjambre, y cada ejecucion enlaza a su bitacora. Todo queda visible en el grafo de memoria y en los paneles existentes de Q-Vault.
+
+### Lectura evolutiva (contexto antes de ejecutar)
+
+Antes de ejecutar un agente o un enjambre, `buildVaultContext()` recupera del Query Index los registros mas relevantes para la tarea y los inyecta como contexto (`=== CONTEXTO RECUPERADO DE Q-VAULT ===`). Q-Vact actua asi como fuente unica de verdad de la memoria de la IA: las experiencias pasadas alimentan las decisiones nuevas.
+
+### Verificacion cruzada (anti-alucinacion)
+
+Antes de entregar la respuesta, `verifyAgainstVault()` extrae los terminos significativos del texto, los contrasta contra el Query Index y devuelve:
+
+```json
+{
+  "checkedTerms": ["cache", "fingerprint", "cuantica"],
+  "verifiedTerms": ["cache", "fingerprint"],
+  "unverifiedTerms": ["cuantica"],
+  "citations": [{ "key": "...", "title": "...", "score": 12.5, "preview": "..." }]
+}
+```
+
+Los terminos sin respaldo almacenado quedan marcados como no verificados y las afirmaciones respaldadas citan su fuente en Q-Vault. La verificacion es informativa y no bloqueante: nunca rompe la respuesta, pero siempre expone que esta verificado y que no.
+
+## Respuestas de API ampliadas
+
+```text
+POST /api/agents/run    -> { ok, result, vaultCitations, verification }
+POST /api/agents/swarm  -> { ok, swarm, consensusMemory, vaultCitations, verification }
+```
+
+## Variables de entorno
+
+Ninguna nueva. La concurrencia del pool de agentes es configurable con `TBIT_AGENT_MAX_CONCURRENCY` (default 4).
+
+## No regresion
+
+- Reutiliza `memoryCore.ts` y `queryIndex.ts` sin modificarlos.
+- La persistencia y la verificacion son best-effort: un fallo de memoria nunca rompe la ejecucion de un agente ni la respuesta HTTP.
+- No se añadieron dependencias nuevas; el motor `.tbit` permanece intacto.
+
+## Verificacion ejecutada
+
+```text
+npm test                                  -> 50/50 PASS (7 archivos, 5 tests nuevos)
+npm run logic:build                       -> PASS
+npx tsc --noEmit                          -> 0 errores
+Smoke runtime (servidor real en :3000):
+  POST /api/agents/run (Code Reviewer, tarea "indice semantico")
+    -> ejecucion persistida como AI::AgentRuntime::Code_Reviewer::<taskId>
+  POST /api/query/search "indice semantico"
+    -> 1 resultado con source=agent-runtime (memoria consultable)
+```
+

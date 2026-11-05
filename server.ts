@@ -51,7 +51,16 @@ import {
 } from "./tbitRuntimePaths";
 import { normalizeTBitKey, normalizeUnicodeText } from "./textEncoding";
 import { getAgentEventBus } from "./src/agents/AgentEventBus";
-import { getAgentOrchestrator } from "./src/agents/AgentOrchestrator";
+import { AgentOrchestrator } from "./src/agents/AgentOrchestrator";
+import {
+  buildVaultContext,
+  persistAgentRun,
+  persistSwarmConsensus,
+  verifyAgainstVault,
+  type PersistedMemoryInfo,
+  type VaultCitation,
+  type VaultVerification,
+} from "./src/agents/AgentMemoryBridge";
 
 type MetadataEntry = {
   length: number;
@@ -2021,9 +2030,16 @@ app.delete("/api/ai/chat/:sessionId", requireSymbolicApiKey, (req, res) => {
 // Fase 64 — Runtime Multi-Agente (AgentOrchestrator + AgentEventBus)
 // ---------------------------------------------------------------------------
 
+/** Concurrencia maxima del pool de agentes (TBIT_AGENT_MAX_CONCURRENCY, default 4). */
+const agentMaxConcurrency = Number(process.env.TBIT_AGENT_MAX_CONCURRENCY ?? "").toString().match(/^\d+$/)
+  ? Number(process.env.TBIT_AGENT_MAX_CONCURRENCY)
+  : 4;
+
+const defaultAgentOrchestrator = new AgentOrchestrator();
+
 app.get("/api/agents", requireSymbolicApiKey, (_req, res) => {
   try {
-    const agents = getAgentOrchestrator().listAgents();
+    const agents = defaultAgentOrchestrator.listAgents();
     res.json({ ok: true, total: agents.length, agents });
   } catch (error) {
     res.status(500).json({
@@ -2057,12 +2073,50 @@ app.post("/api/agents/run", requireSymbolicApiKey, async (req, res) => {
       res.status(400).json({ ok: false, error: "agents/run requiere la tarea (task)." });
       return;
     }
-    const result = await getAgentOrchestrator().runAgent(agent, {
-      task,
-      userId: typeof userId === "string" && userId.trim() ? normalizeTBitKey(userId) : undefined,
-      context: typeof context === "string" ? context : undefined,
+    const normalizedUserId = typeof userId === "string" && userId.trim() ? normalizeTBitKey(userId) : undefined;
+
+    // Fase 66: contexto recuperado de Q-Vault antes de ejecutar (memoria evolutiva).
+    let vaultContext = typeof context === "string" ? context : undefined;
+    let vaultCitations: VaultCitation[] = [];
+    try {
+      const retrieved = await buildVaultContext(task, normalizedUserId);
+      if (retrieved.contextText) {
+        vaultContext = vaultContext ? `${vaultContext}\n\n${retrieved.contextText}` : retrieved.contextText;
+        vaultCitations = retrieved.citations;
+      }
+    } catch {
+      // La recuperacion de contexto es best-effort: nunca bloquea la ejecucion.
+    }
+
+    const chatExecutor = tbitChatToolExecutor;
+    const orchestrator = new AgentOrchestrator({
+      toolExecutor: chatExecutor
+        ? (toolName, args) => chatExecutor(toolName, scopeAiToolArgsToUser(args, normalizedUserId))
+        : undefined,
+      tools: tbitCoreTools,
+      maxConcurrency: agentMaxConcurrency,
+      onRunComplete: async (result, runTask) => {
+        await persistAgentRun(result, runTask, normalizedUserId);
+      },
     });
-    res.json({ ok: result.status === "completed", result });
+
+    const result = await orchestrator.runAgent(agent, {
+      task,
+      userId: normalizedUserId,
+      context: vaultContext,
+    });
+
+    // Fase 66: verificacion cruzada contra Q-Vault antes de entregar la respuesta.
+    let verification: VaultVerification | null = null;
+    if (result.output) {
+      try {
+        verification = await verifyAgainstVault(result.output, normalizedUserId);
+      } catch {
+        verification = null;
+      }
+    }
+
+    res.json({ ok: result.status === "completed", result, vaultCitations, verification });
   } catch (error) {
     res.status(400).json({
       ok: false,
@@ -2078,18 +2132,64 @@ app.post("/api/agents/swarm", requireSymbolicApiKey, async (req, res) => {
       res.status(400).json({ ok: false, error: "agents/swarm requiere la tarea (task)." });
       return;
     }
-    const swarm = await getAgentOrchestrator().runSwarm(
+    const normalizedUserId = typeof userId === "string" && userId.trim() ? normalizeTBitKey(userId) : undefined;
+
+    // Fase 66: contexto recuperado de Q-Vault antes de ejecutar el enjambre.
+    let vaultContext = typeof context === "string" ? context : undefined;
+    let vaultCitations: VaultCitation[] = [];
+    try {
+      const retrieved = await buildVaultContext(task, normalizedUserId);
+      if (retrieved.contextText) {
+        vaultContext = vaultContext ? `${vaultContext}\n\n${retrieved.contextText}` : retrieved.contextText;
+        vaultCitations = retrieved.citations;
+      }
+    } catch {
+      // best-effort
+    }
+
+    const chatExecutor = tbitChatToolExecutor;
+    const orchestrator = new AgentOrchestrator({
+      toolExecutor: chatExecutor
+        ? (toolName, args) => chatExecutor(toolName, scopeAiToolArgsToUser(args, normalizedUserId))
+        : undefined,
+      tools: tbitCoreTools,
+      maxConcurrency: agentMaxConcurrency,
+      onRunComplete: async (result, runTask) => {
+        await persistAgentRun(result, runTask, normalizedUserId);
+      },
+    });
+
+    const swarm = await orchestrator.runSwarm(
       {
         task,
-        userId: typeof userId === "string" && userId.trim() ? normalizeTBitKey(userId) : undefined,
-        context: typeof context === "string" ? context : undefined,
+        userId: normalizedUserId,
+        context: vaultContext,
       },
       {
         agents: Array.isArray(agents) ? agents.filter((item): item is string => typeof item === "string") : undefined,
         validators: Array.isArray(validators) ? validators.filter((item): item is string => typeof item === "string") : undefined,
       },
     );
-    res.json({ ok: true, swarm });
+
+    // Fase 66: la bitacora de consenso se persiste en Q-Vault y la respuesta
+    // consolidada se verifica contra el vault antes de entregarse.
+    let consensusMemory: PersistedMemoryInfo | null = null;
+    try {
+      consensusMemory = await persistSwarmConsensus(swarm, task, normalizedUserId);
+    } catch {
+      consensusMemory = null;
+    }
+
+    let verification: VaultVerification | null = null;
+    if (swarm.consolidated) {
+      try {
+        verification = await verifyAgainstVault(swarm.consolidated, normalizedUserId);
+      } catch {
+        verification = null;
+      }
+    }
+
+    res.json({ ok: true, swarm, consensusMemory, vaultCitations, verification });
   } catch (error) {
     res.status(400).json({
       ok: false,

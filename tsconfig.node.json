@@ -60,6 +60,7 @@
     "src/agents/AgentSpecLoader.ts",
     "src/agents/AgentEventBus.ts",
     "src/agents/AgentOrchestrator.ts",
+    "src/agents/AgentMemoryBridge.ts",
     "FallbackProviderChain.ts"
   ]
 }
