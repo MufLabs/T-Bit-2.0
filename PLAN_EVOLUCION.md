@@ -28,7 +28,7 @@
 | Tanda | Objetivo | Alcance | Estado |
 |---|---|---|---|
 | T0 | Gobernanza | Rama, PLAN, DECISIONES, commit base | ✅ Hecha |
-| T1 | Objetivo 1 | Runtime multi-agente: `AgentSpecLoader`, `AgentEventBus`, `AgentOrchestrator` (pool asíncrono, sin dependencias nuevas), endpoints `/api/agents/*`, tests | ⏳ En curso |
+| T1 | Objetivo 1 | Runtime multi-agente: `AgentSpecLoader`, `AgentEventBus`, `AgentOrchestrator` (pool asíncrono, sin dependencias nuevas), endpoints `/api/agents/*`, tests | ✅ Hecha (Fase 64) |
 | T2 | Objetivo 2 | `FallbackProviderChain` en `AiProviderFactory.ts`/`UniversalAiProviders.ts`: failover 429/5xx/timeout/cuota, cooldown, monitoreo de latencia, cadena configurable por env | Pendiente |
 | T3 | Objetivo 3 | Memoria evolutiva: persistencia automática de ejecuciones de agentes/consenso en `memoryCore` + verificación cruzada con `documentQa`/`queryIndex` antes de respuestas definitivas | Pendiente |
 | T4 | Objetivo 4 | `DynamicSkillManager.ts`: catálogo local + repos de referencia, skills declarativas (.md/.json), integridad sha256 + commit fijado, permisos vía `aiPermissions.ts`, integración con `TBitToolSchemas.ts`/`TBitLocalToolExecutor.ts` | Pendiente |
@@ -53,6 +53,7 @@ Cada tanda termina con: `npm test` en PASS, `npx tsc --noEmit` limpio, commit at
 
 ## 3. Estado para retomar (se actualiza al cierre de cada tanda)
 
-- **Última tanda completada:** T0 (gobernanza).
-- **Siguiente acción:** implementar T1 (runtime multi-agente) según alcance de la tabla §1.
+- **Última tanda completada:** T1 — Runtime multi-agente (Fase 64). 33/33 tests PASS, `logic:build` y `tsc --noEmit` limpios, smoke E2E real de `/api/agents`, `/api/agents/run`, `/api/agents/swarm` y `/api/agents/events` contra servidor en :3000. Libro actualizado (sección 25.30).
+- **Siguiente acción:** implementar T2 (Objetivo 2): `FallbackProviderChain` en `AiProviderFactory.ts`/`UniversalAiProviders.ts` con failover 429/5xx/timeout/cuota, cooldown y monitoreo; tests con providers falsos; integración transparente en `/api/ai/chat`.
 - **Comandos de verificación:** `npm test`, `npm run logic:build`, `npx tsc --noEmit`, `npm run build`.
+- **Nota de entorno:** en PowerShell, `npm ... 2>&1` convierte los avisos de stderr de npm en errores falsos; ejecutar los comandos npm sin redirección.

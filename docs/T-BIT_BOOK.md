@@ -5888,3 +5888,86 @@ Sin API key en cualquier /api    -> 401
 - Duplicación legacy `TBitAiBridge` vs `TBitPrompts`/`TBitToolSchemas`.
 - Empaquetado desktop (instalador/firma/servicio en segundo plano).
 - Agent runtime multi-agente (fases 1-11 del roadmap de evolución IA):
+  parcialmente cubierto por la Fase 64 (ver sección siguiente).
+
+---
+
+# 25.30 Fase 64 - Runtime Multi-Agente Paralelo (AgentOrchestrator)
+
+## Objetivo
+
+Ejecutar las 18 especificaciones de agentes de `.github/agents/*.agent.md` de forma individual y en enjambre paralelo, con malla de comunicación inter-agente auditable, validación cruzada (consenso multi-IA) y respuesta consolidada, sin bloquear la API Express ni introducir dependencias nuevas.
+
+## Archivos nuevos
+
+```text
+src/agents/AgentSpecLoader.ts    carga y parseo de los 18 .agent.md (contrato del test de inventario)
+src/agents/AgentEventBus.ts      bus de eventos tipado + journal auditable en memoria (tope 2000 eventos)
+src/agents/AgentOrchestrator.ts  orquestador: pool de concurrencia, ejecución individual/enjambre, consenso
+tests/AgentRuntime.phase64.test.ts  7 tests del runtime
+```
+
+## Cómo funciona
+
+### Carga de especificaciones
+
+`AgentSpecLoader` lee los 18 `.agent.md` con la misma semántica de frontmatter congelada por `tests/agentSpecs.inventory.test.ts` (`name`, `description`, `capabilities`, `tools`, `argument-hint`). Los gaps documentados (`permissions`, `modelRequirements` ausentes) se cubren con un **PolicyOverlay derivado en runtime** desde el vocabulario de tools declarado: ningún agente obtiene permiso de borrado y el borrado siempre exige confirmación humana.
+
+### Ejecución individual
+
+```text
+POST /api/agents/run   { "agent": "Code Reviewer", "task": "...", "userId": "...", "context": "..." }
+```
+
+Cada agente se ejecuta con **aislamiento de contexto**: historial de mensajes propio, system prompt construido desde su especificación (rol, capacidades, reglas del runtime y cuerpo del `.agent.md`), y su propio runtime de proveedor IA (por defecto el runtime global de `AiProviderFactory`, con fallback determinista local).
+
+### Enjambre paralelo
+
+```text
+POST /api/agents/swarm  { "task": "...", "agents": ["..."], "validators": ["..."], "userId": "..." }
+```
+
+1. Todos los agentes seleccionados (por defecto los 18) trabajan la tarea **en paralelo** mediante un pool de concurrencia propio (semáforo asíncrono, límite configurable, sin dependencias nuevas).
+2. Los validadores cruzados (por defecto `Consensus Agent` y `Validation Agent`) revisan cada salida y emiten veredictos (`aprobado` / `observaciones` / `rechazado`).
+3. Un agente de consenso consolida la respuesta final, incluyendo las observaciones de la validación cruzada y marcando afirmaciones sin respaldo.
+
+### Malla de comunicación auditable
+
+Todo el flujo pasa por `AgentEventBus`: `task.started`, `task.completed`, `task.failed`, `message.sent` (incluye llamadas a herramientas), `validation.requested`, `validation.completed`, `consensus.requested`, `consensus.completed`. El journal se consulta con:
+
+```text
+GET /api/agents/events?limit=100
+```
+
+El catálogo de agentes con su política derivada se consulta con:
+
+```text
+GET /api/agents
+```
+
+## Variables de entorno
+
+Ninguna nueva obligatoria. El proveedor IA de los agentes es el mismo runtime global (`TBIT_AI_PROVIDER` y claves por proveedor ya documentadas). Sin proveedores remotos configurados, los agentes operan con el proveedor determinista local.
+
+## Seguridad y no regresión
+
+- No se modificó el motor `.tbit`, cifrado AES-256-GCM, HMAC, WAL, locks, snapshots ni ningún endpoint existente.
+- No se añadieron dependencias nuevas.
+- Los agentes heredan el ejecutor de herramientas con `aiPermissions.ts` cuando se integra al chat; el borrado por IA sigue requiriendo confirmación humana.
+- El journal de eventos vive en memoria y está acotado (2000 eventos) para no crecer sin límite.
+
+## Verificación ejecutada
+
+```text
+npm test                                  -> 33/33 PASS (5 archivos, 7 tests nuevos)
+npm run logic:build                       -> PASS
+npx tsc --noEmit                          -> 0 errores
+Smoke runtime (servidor real en :3000):
+  GET  /api/agents          -> total: 18 agentes con política derivada
+  POST /api/agents/run      -> Code Reviewer completado (proveedor determinista)
+  POST /api/agents/swarm    -> 2 agentes en paralelo + Consensus Agent:
+                               2 resultados, 2 veredictos, 9 eventos auditables,
+                               respuesta consolidada
+  GET  /api/agents/events   -> journal con eventos del enjambre
+```
+

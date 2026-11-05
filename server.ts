@@ -49,6 +49,8 @@ import {
   TBitSpacePaths,
 } from "./tbitRuntimePaths";
 import { normalizeTBitKey, normalizeUnicodeText } from "./textEncoding";
+import { getAgentEventBus } from "./src/agents/AgentEventBus";
+import { getAgentOrchestrator } from "./src/agents/AgentOrchestrator";
 
 type MetadataEntry = {
   length: number;
@@ -1983,6 +1985,87 @@ app.post("/api/ai/chat", requireSymbolicApiKey, async (req, res) => {
 app.delete("/api/ai/chat/:sessionId", requireSymbolicApiKey, (req, res) => {
   resetTBitChatSession(req.params.sessionId);
   res.json({ ok: true, status: "SESION_COGNITIVA_REINICIADA" });
+});
+
+// ---------------------------------------------------------------------------
+// Fase 64 — Runtime Multi-Agente (AgentOrchestrator + AgentEventBus)
+// ---------------------------------------------------------------------------
+
+app.get("/api/agents", requireSymbolicApiKey, (_req, res) => {
+  try {
+    const agents = getAgentOrchestrator().listAgents();
+    res.json({ ok: true, total: agents.length, agents });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Fallo listando agentes T-BIT.",
+    });
+  }
+});
+
+app.get("/api/agents/events", requireSymbolicApiKey, (req, res) => {
+  try {
+    const limitParam = Number(req.query.limit);
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 2000) : undefined;
+    res.json({ ok: true, events: getAgentEventBus().getJournal(limit) });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Fallo leyendo el journal de eventos de agentes.",
+    });
+  }
+});
+
+app.post("/api/agents/run", requireSymbolicApiKey, async (req, res) => {
+  try {
+    const { agent, task, userId, context } = req.body ?? {};
+    if (typeof agent !== "string" || !agent.trim()) {
+      res.status(400).json({ ok: false, error: "agents/run requiere el nombre del agente." });
+      return;
+    }
+    if (typeof task !== "string" || !task.trim()) {
+      res.status(400).json({ ok: false, error: "agents/run requiere la tarea (task)." });
+      return;
+    }
+    const result = await getAgentOrchestrator().runAgent(agent, {
+      task,
+      userId: typeof userId === "string" && userId.trim() ? normalizeTBitKey(userId) : undefined,
+      context: typeof context === "string" ? context : undefined,
+    });
+    res.json({ ok: result.status === "completed", result });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Fallo ejecutando agente T-BIT.",
+    });
+  }
+});
+
+app.post("/api/agents/swarm", requireSymbolicApiKey, async (req, res) => {
+  try {
+    const { task, userId, context, agents, validators } = req.body ?? {};
+    if (typeof task !== "string" || !task.trim()) {
+      res.status(400).json({ ok: false, error: "agents/swarm requiere la tarea (task)." });
+      return;
+    }
+    const swarm = await getAgentOrchestrator().runSwarm(
+      {
+        task,
+        userId: typeof userId === "string" && userId.trim() ? normalizeTBitKey(userId) : undefined,
+        context: typeof context === "string" ? context : undefined,
+      },
+      {
+        agents: Array.isArray(agents) ? agents.filter((item): item is string => typeof item === "string") : undefined,
+        validators: Array.isArray(validators) ? validators.filter((item): item is string => typeof item === "string") : undefined,
+      },
+    );
+    res.json({ ok: true, swarm });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Fallo ejecutando el enjambre multi-agente T-BIT.",
+    });
+  }
 });
 
 app.post("/api/ai/compress", requireSymbolicApiKey, async (req, res) => {
