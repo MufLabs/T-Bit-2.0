@@ -86,3 +86,53 @@ ejecutar_skill -> bloque NO CONFIABLE verificado; instalar_skill -> persistida c
 - API pública de `createAiProviderRuntime`/`createAiProviderRuntimeFromConfig`: preservada.
 - Cero dependencias nuevas en todo el package.json.
 
+---
+
+# INFORME_EVOLUCION.md — Tanda 2: Verificación y endurecimiento (Fases 69-73)
+
+Fecha: 2026-11-05 a 2026-11-06. Rama: `feature/evolucion-tbit`. Commits atómicos: Fase 69 `fb3b371`, Fase 70 `c2830c8`, Fase 71 `1db66ae`, Fase 72 `098fbaa`, Fase 73 `cb53d74`.
+
+## 1. Qué se verificó (con evidencia ejecutada)
+
+- **Punto 1 — Agentes reales (Fase 69).** Cada agente ejecuta su especificación contra el proveedor activo de la cadena de failover; el eslabón determinista es únicamente el último recurso (`resolveRuntimeProviderChain` + `deterministicAlwaysLast`). Verificado con un servidor local simulado compatible con OpenAI incluyendo respuestas 429, 503 y timeout: el failover funciona y cada `AgentRunResult` registra `providerId`, `providerMode` y `deterministicFallback`. 4 tests nuevos.
+- **Punto 2 — Concurrencia (Fase 70).** Estrés con los 18 agentes en paralelo escribiendo a la vez en el journal y en Q-Vault. Se encontró y corrigió por causa raíz una condición de carrera real en `memoryCore` (lectura-modificación-escritura del índice sin exclusión mutua entre rutas async): se añadió un mutex async (`withIndexWriteLock`) aplicado a las 6 rutas que mutan el índice. Tras la corrección: 0 escrituras perdidas, 0 corrupciones de WAL, motor `.tbit` intacto. 5 tests nuevos de estrés.
+- **Punto 3 — Proveedores IA (Fase 71).** Auditoría uno por uno del catálogo (Gemini, Grok/xAI, Qwen, Hermes, Ollama, LM Studio, OpenRouter, OpenAI-compatible dinámico): 14 tests. Gaps corregidos: Grok/xAI y Qwen no tenían base URL por defecto (ahora `https://api.x.ai/v1` y DashScope compatible-mode). Configuración 100% por variables de entorno, sin claves en el código, documentadas en el libro (25.37). Verificación de red con fecha (2026-11-05): endpoints operativos (OpenAI 401, Gemini 403, Claude 401, xAI 401, Qwen 401, OpenRouter 200); free tier: Gemini SÍ, OpenRouter 12 modelos `:free` de 454, xAI sin free tier verificado, Qwen no verificado, Ollama/LM Studio locales gratuitos. Visibilidad del eslabón determinista: `/api/ai/chat` devuelve `providerInfo` + `deterministicFallback` y el chat muestra un aviso explícito cuando la respuesta NO proviene de IA.
+- **Punto 4 — Anti-alucinación en el chat (Fase 72).** Gap real: el chat principal respondía sin contrastar contra Q-Vault. Integrado con la misma fuente de verdad que los agentes: contexto pre-respuesta (`buildVaultContext`), verificación post-respuesta (`verifyAgainstVault`, con términos verificados/no verificados y citas) y persistencia de interacciones relevantes con wikilinks y refresco del índice semántico. Best-effort garantizado por test: un vault caído nunca rompe la respuesta. 5 tests, incluida integración real contra el vault físico.
+- **Punto 5 — Skills remotas (Fase 73).** Con red real disponible: indexación de catálogos vía API de GitHub (`listRemoteCatalog`, 25 SKILL.md en `rmaterile/agent-skills`), manifiesto versionado `skills/remote-catalog.json` con 8 skills reales verificadas (repo@commit + sha256 + bytes, fecha 2026-11-06), instalación con commit fijado y verificación de integridad (`installFromCatalog`), rechazo demostrado de contenido manipulado (sha256 falso → instalación bloqueada). Catálogo ampliado de 3 semilla a 3 + 8 remotas verificadas. Todo el contenido se trata como NO CONFIABLE (nunca se ejecuta código). 4 tests con red real; sin red se omiten como NO VERIFICADO.
+
+## 2. Qué falló (y cómo se detectó)
+
+- **Condición de carrera en `memoryCore`** (Punto 2): detectada por el test de estrés (escrituras perdidas bajo 18 agentes paralelos). Corregida por causa raíz con mutex async, no con reintentos.
+- **Grok/xAI y Qwen sin base URL por defecto** (Punto 3): el factory rechazaba proveedores configurables válidos. Corregido con defaults oficiales documentados.
+- **Chat sin verificación anti-alucinación** (Punto 4): el chat no aplicaba lo que el runtime de agentes sí hacía desde la Fase 66. Corregido integrando los tres hooks.
+- **Manifiesto de skills con BOM y tratado como skill** (Punto 5): detectado por los tests (JSON.parse falló y el conteo local dio 4 en vez de 3). Corregido: tolerancia a BOM y exclusión explícita del manifiesto del catálogo local.
+
+## 3. Qué quedó NO VERIFICADO (regla de veracidad)
+
+- **Failover real con claves de proveedores IA**: el `.env` local no contiene claves de IA (solo secretos T-BIT: HMAC, cifrado, API key local). `.env` está en `.gitignore` (verificado); ninguna clave fue impresa ni versionada. El failover está cubierto por tests con proveedores falsos y mock 429/503/timeout, pero no contra proveedores remotos reales.
+- **Cuota gratuita de Qwen**: endpoint operativo (401 sin clave), pero la cuota gratuita de prueba no quedó verificada en la documentación consultada.
+- **Hermes, Ollama y LM Studio en runtime**: no había instancias locales activas en este entorno; su configuración está verificada por tests de factory, no contra un servidor real.
+- **Paridad macOS/Linux y empaquetado**: fuera del alcance de esta tanda (explícitamente excluido); sigue como deuda D-010.
+
+## 4. Verificación ejecutada (estado final)
+
+```text
+npm test            -> 89/89 PASS (13 archivos de prueba)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+npm run build       -> PASS (vite 6.4.2; warning preexistente de tamaño de chunk)
+```
+
+## 5. No regresión (guardarraíles intactos)
+
+- Motor `.tbit` (frames inline, salt 32 bytes, probing, simetría): sin cambios, verificado por el estrés de concurrencia.
+- AES-256-GCM, HMAC timing-safe, WAL, locks, reconciliación de salud: sin cambios.
+- Seguridad de skills: solo definiciones declarativas, commit fijado obligatorio, sha256 verificado en cada ejecución, permisos obligatorios — ahora también contra el manifiesto.
+- Cero dependencias nuevas en todo el package.json.
+
+## 6. Pendiente para futuras tandas
+
+- Failover real con claves de proveedores (requiere claves en el entorno).
+- Persistencia completa del journal de eventos y bundle frontend monolítico (deuda preexistente).
+- Interfaz y empaquetado multiplataforma (explícitamente excluidos de la Tanda 2).
+
