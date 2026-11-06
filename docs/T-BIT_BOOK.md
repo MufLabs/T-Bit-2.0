@@ -6412,3 +6412,43 @@ npm run logic:build -> PASS
 npx tsc --noEmit    -> 0 errores
 npm run build       -> PASS (vite 6.4.2, warning preexistente de chunk)
 ```
+
+---
+
+# 25.38 Fase 72 - Tanda 2: Verificacion anti-alucinacion en el chat principal
+
+## Objetivo
+
+Garantizar que el chat principal (TBitChatEngine) aplique, antes de responder, la verificacion contra Q-Vault y las citas, igual que el runtime de agentes (Fase 66), y que el indice semantico y los wikilinks se actualicen tras cada interaccion relevante.
+
+## Gap encontrado y corregido
+
+**El chat no aplicaba verificacion anti-alucinacion.** `procesarMensajeUsuario` respondia directamente del proveedor sin contrastar contra Q-Vault (a diferencia del runtime de agentes, que desde la Fase 66 usa `buildVaultContext` + `verifyAgainstVault`). Corregido con tres hooks opcionales en `TBitChatEngineOptions`, todos cableados en `server.ts` (`/api/ai/chat`) con la misma fuente de verdad que los agentes:
+
+1. `vaultContextProvider` — recupera contexto relevante de Q-Vault ANTES de responder y lo inyecta en el mensaje de sistema (RAG contra el vault persistido).
+2. `vaultVerifier` — verifica la respuesta final contra Q-Vault antes de entregarla; la respuesta incluye `verification` con `checkedTerms`/`verifiedTerms`/`unverifiedTerms` y `citations`.
+3. `interactionPersister` — persiste en Q-Vault las interacciones relevantes (con uso de herramientas o con citas de respaldo) como `AI::Chat::<sesion>::<ts>`, con payload tipado, tags `chat`/`interaccion` y **wikilinks** `[[clave]]` a cada registro citado. Tras persistir se fuerza el refresco del indice semantico (`getSemanticIndexStats`, que reconstruye cuando cambia el fingerprint del query index). Las interacciones irrelevantes (saludo sin tools ni citas) NO se persisten, para no contaminar el vault.
+
+Todo es best-effort: un fallo del vault (contexto, verificacion o persistencia) nunca rompe la respuesta del chat.
+
+## Verificacion (tests `tests/TBitChatEngine.antiHallucination.phase72.test.ts`, 5 tests)
+
+```text
+1. El contexto de Q-Vault se inyecta en el mensaje de sistema antes de responder
+   (verificado inspeccionando la llamada real al proveedor) y las citas viajan en la respuesta.
+2. La verificacion entrega terminos verificados/no verificados con citas.
+3. Las interacciones relevantes (con tools) se persisten; las irrelevantes (saludo) no.
+4. Un vault caido nunca rompe la respuesta (best-effort garantizado por test).
+5. Integracion real contra el vault fisico (directorio temporal): semilla con
+   indexExternalMemoryRecord -> contexto recuperado -> "fenix" verificado ->
+   interaccion persistida con wikilink [[Proyecto::Fenix::Descripcion]] comprobado
+   en memory-core-index.json.
+```
+
+## Verificacion ejecutada
+
+```text
+npm test            -> 85/85 PASS (12 archivos, 5 tests nuevos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+```

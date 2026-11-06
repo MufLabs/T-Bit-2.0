@@ -19,7 +19,7 @@ import {
   getNetworkState,
   importNetworkRecord,
 } from "./networkSync";
-import { deleteMemoryRecord, getMemoryContext, getMemoryGraph, getMemoryLinks, recallMemory, rememberMemory } from "./memoryCore";
+import { deleteMemoryRecord, getMemoryContext, getMemoryGraph, getMemoryLinks, indexExternalMemoryRecord, recallMemory, rememberMemory } from "./memoryCore";
 import { deleteMarkdownDocument, importMarkdownDocument, listMarkdownDocuments, parseMarkdownDocument, purgeOrphanMarkdownChunks, reconstructMarkdownDocument } from "./markdownBridge";
 import { deleteBinaryAsset, importBinaryAsset, reconstructBinaryAsset } from "./binaryAssetBridge";
 import { importUniversalDocument } from "./universalDocumentBridge";
@@ -2003,6 +2003,44 @@ app.post("/api/ai/chat", requireSymbolicApiKey, async (req, res) => {
         tools: tbitCoreTools,
         locale: "es-CO",
         timeZone: "America/Bogota",
+        // Tanda 2 — Verificacion anti-alucinacion del chat contra Q-Vault,
+        // con la misma fuente de verdad que el runtime de agentes (Fase 66).
+        vaultContextProvider: (query, userId) => buildVaultContext(query, userId),
+        vaultVerifier: (text, userId) => verifyAgainstVault(text, userId),
+        interactionPersister: async (record) => {
+          const sessionPart = normalizeTBitKey(record.sessionId) || "sesion";
+          const key = `AI::Chat::${sessionPart}::${Date.now().toString(36)}`;
+          const text = [
+            `Interaccion de chat T-BIT (sesion ${record.sessionId}).`,
+            `Usuario: ${record.userMessage}`,
+            `Asistente: ${record.assistantMessage}`,
+            record.citations.length
+              ? `Respaldo en Q-Vault:\n${record.citations.map((citation) => `- [[${citation.key}]] ${citation.title} (${citation.source}, score ${citation.score})`).join("\n")}`
+              : "Sin respaldo directo en Q-Vault.",
+          ].join("\n");
+          const persisted = await indexExternalMemoryRecord({
+            key,
+            userId: record.userId ?? "ai",
+            text,
+            payload: {
+              tipo: "chat-interaction",
+              sessionId: record.sessionId,
+              userMessage: record.userMessage,
+              assistantMessage: record.assistantMessage,
+            },
+            tags: ["chat", "interaccion"],
+            links: record.citations.map((citation) => citation.key),
+            source: "chat",
+          });
+          // Refresco del indice semantico: el fingerprint del query index
+          // cambia al persistir, getSemanticIndexStats fuerza la reconstruccion.
+          try {
+            await getSemanticIndexStats();
+          } catch {
+            // best-effort
+          }
+          return { key: persisted.key, checksum: persisted.checksum };
+        },
       },
     );
 
