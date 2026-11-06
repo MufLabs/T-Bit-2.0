@@ -6452,3 +6452,56 @@ npm test            -> 85/85 PASS (12 archivos, 5 tests nuevos)
 npm run logic:build -> PASS
 npx tsc --noEmit    -> 0 errores
 ```
+
+---
+
+# 25.39 Fase 73 - Tanda 2: Skills remotas verificadas contra la red real
+
+## Objetivo
+
+Probar contra la red real la descarga e indexacion de catalogos de los repositorios de referencia, con commit fijado y verificacion de integridad, tratando todo el contenido como no confiable, y ampliar el catalogo mas alla de las 3 skills semilla con skills reales verificadas.
+
+## Implementacion
+
+1. **`listRemoteCatalog(repo, commit?)`** (DynamicSkillManager): indexa el arbol git del repo via API de GitHub y devuelve las rutas `SKILL.md` con su tamano y el commit resuelto (fijable para instalacion posterior). Solo metadatos: este paso nunca descarga contenido.
+2. **Manifiesto `skills/remote-catalog.json`** (versionado, solo metadatos, sin contenido de terceros): 8 skills reales verificadas contra la red el 2026-11-06, cada una con `repo@commit`, ruta, sha256 del contenido exacto y bytes. Fuentes: `rmaterile/agent-skills@301b02b1...` (5 skills) y `rmaterile/superpowers@22f0b463...` (3 skills).
+3. **`installFromCatalog(id)`**: descarga con commit fijado desde raw.githubusercontent.com, verifica el sha256 del contenido contra el manifiesto (rechaza contenido manipulado upstream) y persiste en Q-Vault pasando por aiPermissions.
+4. **`loadRemoteCatalogManifest()`**: tolera BOM; el manifiesto se excluye del catalogo local de skills (no es una skill).
+
+## Catalogo ampliado (3 semilla -> 3 + 8 remotas verificadas, fecha: 2026-11-06)
+
+```text
+rmaterile/agent-skills @ 301b02b12bff98e4688e6984af6556802322bbde:
+  test-driven-development      sha256 8fcaa57c...  16845 B
+  security-and-hardening       sha256 35856685...  17578 B
+  code-review-and-quality      sha256 a47551da...  21263 B
+  context-engineering          sha256 5ee2929d...  15514 B
+  debugging-and-error-recovery sha256 01cff31f...  10893 B
+rmaterile/superpowers @ 22f0b463e7a5e579904dd6211a520321035526f7:
+  systematic-debugging           sha256 51c6435d...  9530 B
+  verification-before-completion sha256 2befe7fc...   3646 B
+  writing-plans                  sha256 a6c67c19...  10335 B
+```
+
+## Verificacion contra la red real (tests `tests/DynamicSkillManager.remoteCatalog.phase73.test.ts`, 4 tests)
+
+```text
+1. Indexacion real del catalogo de rmaterile/agent-skills: 25 SKILL.md detectadas,
+   commit resuelto = 301b02b1... (coincide con la verificacion manual del 2026-11-06).
+2. Instalacion real de 3 skills del manifiesto con commit fijado: sha256 verificado,
+   ejecucion como bloque "material de referencia NO CONFIABLE" que nunca prevalece
+   sobre el libro T-BIT.
+3. Anti-manipulacion: un manifiesto con sha256 falso RECHAZA la instalacion
+   ("Integridad comprometida") aunque el contenido exista upstream.
+4. Catalogo ampliado: 3 semilla + 5 remotas instaladas = 8, y detectSkillNeed
+   encuentra "security-and-hardening" para una tarea de auditoria de inputs.
+Sin red: los tests se omiten (NO VERIFICADO); nunca se inventa contenido.
+```
+
+## Verificacion ejecutada
+
+```text
+npm test            -> 89/89 PASS (13 archivos, 4 tests nuevos con red real)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+```

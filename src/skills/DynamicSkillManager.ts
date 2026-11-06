@@ -60,6 +60,27 @@ export type SkillExecutionResult = {
   citations: string[];
 };
 
+/** Tanda 2 — Entrada del catalogo remoto indexado (arbol git del repo). */
+export type RemoteSkillCatalogEntry = {
+  repo: string;
+  path: string;
+  size: number;
+  /** Commit del arbol consultado (fijado para cualquier instalacion posterior). */
+  commit: string;
+};
+
+/** Tanda 2 — Entrada del manifiesto skills/remote-catalog.json. */
+export type RemoteCatalogManifestEntry = {
+  id: string;
+  repo: string;
+  commit: string;
+  path: string;
+  sha256: string;
+  bytes: number;
+  name: string;
+  description: string;
+};
+
 const SKILLS_DIR = join(process.cwd(), "skills");
 const SKILL_INDEX_PATH = () => resolveActiveTBitDataPath("skills-index.json");
 const MAX_SKILL_BYTES = 256 * 1024;
@@ -154,6 +175,8 @@ export class DynamicSkillManager {
     }
     const definitions: SkillDefinition[] = [];
     for (const file of files.filter((name) => name.endsWith(".md") || name.endsWith(".json"))) {
+      // El manifiesto del catalogo remoto no es una skill.
+      if (file === "remote-catalog.json") continue;
       try {
         const raw = await readFile(join(this.skillsDir, file), "utf8");
         definitions.push(buildDefinition({ raw, source: "local", path: file, fallbackId: slugId(file.replace(/\.(md|json)$/, "")) }));
@@ -300,6 +323,67 @@ export class DynamicSkillManager {
       path: input.path,
       fallbackId: slugId(input.path.split("/").pop()?.replace(/\.(md|json)$/i, "") ?? input.repo),
       userId: input.userId,
+    });
+  }
+
+  /**
+   * Tanda 2 — Indexa el catalogo de skills declarativas de un repositorio de
+   * referencia via API de GitHub (arbol git). Si no se pasa commit, se usa el
+   * HEAD actual del repo y se devuelve en cada entrada para poder fijarlo.
+   * Solo indexa metadatos (ruta/tamano/commit); nunca descarga ni ejecuta
+   * contenido en este paso.
+   */
+  async listRemoteCatalog(repo: string, commit?: string): Promise<RemoteSkillCatalogEntry[]> {
+    const url = `https://api.github.com/repos/${repo}/git/trees/${commit || "HEAD"}?recursive=1`;
+    const response = await fetch(url, { headers: { "User-Agent": "tbit-skill-catalog", Accept: "application/vnd.github+json" } });
+    if (!response.ok) {
+      throw new Error(`No se pudo indexar el catalogo de ${repo} (HTTP ${response.status}).`);
+    }
+    const tree = (await response.json()) as { sha?: string; tree?: Array<{ type: string; path: string; size?: number }> };
+    const resolvedCommit = tree.sha || commit || "HEAD";
+    return (tree.tree ?? [])
+      .filter((node) => node.type === "blob" && /(^|\/)SKILL\.md$/i.test(node.path))
+      .map((node) => ({ repo, path: node.path, size: node.size ?? 0, commit: resolvedCommit }));
+  }
+
+  /** Tanda 2 — Lee el manifiesto del catalogo remoto verificado. */
+  async loadRemoteCatalogManifest(): Promise<RemoteCatalogManifestEntry[]> {
+    const raw = (await readFile(join(this.skillsDir, "remote-catalog.json"), "utf8")).replace(/^\uFEFF/, "");
+    const manifest = JSON.parse(raw) as { skills?: RemoteCatalogManifestEntry[] };
+    return manifest.skills ?? [];
+  }
+
+  /**
+   * Tanda 2 — Instala una skill del manifiesto verificado: descarga con commit
+   * fijado, verifica el sha256 del contenido contra el manifiesto (deteccion
+   * de manipulacion upstream) y persiste en Q-Vault. El contenido se trata
+   * como material NO CONFIABLE en cada ejecucion.
+   */
+  async installFromCatalog(catalogId: string, userId?: string): Promise<SkillDefinition> {
+    const entry = (await this.loadRemoteCatalogManifest()).find((item) => item.id === slugId(catalogId));
+    if (!entry) {
+      throw new Error(`Skill "${catalogId}" no presente en el catalogo remoto verificado (skills/remote-catalog.json).`);
+    }
+    const url = `https://raw.githubusercontent.com/${entry.repo}/${entry.commit}/${entry.path.replace(/^\/+/, "")}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`No se pudo descargar la skill ${entry.id} (HTTP ${response.status}) desde ${url}`);
+    }
+    const raw = await response.text();
+    const checksum = sha256(raw);
+    if (checksum !== entry.sha256) {
+      throw new Error(
+        `Integridad comprometida para ${entry.id}: sha256 esperado ${entry.sha256}, obtenido ${checksum}. Instalacion rechazada.`,
+      );
+    }
+    return this.installSkill({
+      raw,
+      source: "remote",
+      repo: entry.repo,
+      commit: entry.commit,
+      path: entry.path,
+      fallbackId: entry.id,
+      userId,
     });
   }
 

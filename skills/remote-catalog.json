@@ -1,0 +1,22 @@
+{
+  "version": "remote-catalog-v1",
+  "updatedAt": "2026-11-06",
+  "verifiedAgainstNetwork": true,
+  "verificationDate": "2026-11-06",
+  "notes": [
+    "Catalogo de skills remotas verificadas contra la red real (raw.githubusercontent.com).",
+    "Cada entrada fija repo@commit y sha256 del contenido exacto verificado.",
+    "El contenido remoto se trata como material NO CONFIABLE: nunca se ejecuta, solo se inyecta como contexto declarativo.",
+    "La instalacion verifica el sha256 del contenido descargado contra este manifiesto antes de persistir en Q-Vault."
+  ],
+  "skills": [
+    { "id": "test-driven-development", "repo": "rmaterile/agent-skills", "commit": "301b02b12bff98e4688e6984af6556802322bbde", "path": "skills/test-driven-development/SKILL.md", "sha256": "8fcaa57cf445ca6111fd20d2321bcfc0f424db7cfe526836db7b9bf8828fee39", "bytes": 16845, "name": "test-driven-development", "description": "Drives development with tests using the red-green-refactor loop." },
+    { "id": "security-and-hardening", "repo": "rmaterile/agent-skills", "commit": "301b02b12bff98e4688e6984af6556802322bbde", "path": "skills/security-and-hardening/SKILL.md", "sha256": "358566859a3d791c474eb9fa36939b45875c7480d7d4650eaa092dceae2c1c37", "bytes": 17578, "name": "security-and-hardening", "description": "Hardens code against vulnerabilities; use when auditing input handlers." },
+    { "id": "code-review-and-quality", "repo": "rmaterile/agent-skills", "commit": "301b02b12bff98e4688e6984af6556802322bbde", "path": "skills/code-review-and-quality/SKILL.md", "sha256": "a47551daf26e3cc5670f5286f9e4850c2fc662d5ba08b86eee895254f3851797", "bytes": 21263, "name": "code-review-and-quality", "description": "Conducts multi-axis code review; use before merging any change." },
+    { "id": "context-engineering", "repo": "rmaterile/agent-skills", "commit": "301b02b12bff98e4688e6984af6556802322bbde", "path": "skills/context-engineering/SKILL.md", "sha256": "5ee2929d3aded01587aa24fc9907693c8820f87f807ea0c52a263af718b62d0b", "bytes": 15514, "name": "context-engineering", "description": "Optimizes agent context setup; use when output quality degrades." },
+    { "id": "debugging-and-error-recovery", "repo": "rmaterile/agent-skills", "commit": "301b02b12bff98e4688e6984af6556802322bbde", "path": "skills/debugging-and-error-recovery/SKILL.md", "sha256": "01cff31fbd8796b444225f8a8386219792c25cebb5d4d76df664afd1d13ed610", "bytes": 10893, "name": "debugging-and-error-recovery", "description": "Guides systematic root-cause debugging; use when tests fail or builds break." },
+    { "id": "systematic-debugging", "repo": "rmaterile/superpowers", "commit": "22f0b463e7a5e579904dd6211a520321035526f7", "path": "skills/systematic-debugging/SKILL.md", "sha256": "51c6435d98c83c42c96ba7c35725a0b2c376cd487fb1a4e6bd0ddbe7e33ef202", "bytes": 9530, "name": "systematic-debugging", "description": "Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes." },
+    { "id": "verification-before-completion", "repo": "rmaterile/superpowers", "commit": "22f0b463e7a5e579904dd6211a520321035526f7", "path": "skills/verification-before-completion/SKILL.md", "sha256": "2befe7fc55bcadaa3d97dd9e8efeb633d2561c0ebe74c5a8b17c4d9e7e4520b3", "bytes": 3646, "name": "verification-before-completion", "description": "Use when about to claim work is complete, fixed, or passing; requires running verification first." },
+    { "id": "writing-plans", "repo": "rmaterile/superpowers", "commit": "22f0b463e7a5e579904dd6211a520321035526f7", "path": "skills/writing-plans/SKILL.md", "sha256": "a6c67c1900064347c2a329990dd3c555657c51c3ec53b259a08aa01a2c26139a", "bytes": 10335, "name": "writing-plans", "description": "Use when you have a spec or requirements for a multi-step task, before touching code." }
+  ]
+}
