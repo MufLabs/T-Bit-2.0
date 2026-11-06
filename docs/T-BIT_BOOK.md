@@ -6285,3 +6285,38 @@ npm test            -> 62/62 PASS (9 archivos, 5 tests nuevos)
 npm run logic:build -> PASS
 npx tsc --noEmit    -> 0 errores
 ```
+
+---
+
+# 25.36 Fase 70 - Tanda 2: Concurrencia (journal + Q-Vault + motor .tbit)
+
+## Objetivo
+
+Demostrar con pruebas de estres que 18 agentes en paralelo escribiendo a la vez en el journal y en Q-Vault no producen condiciones de carrera, corrupcion de WAL ni bloqueos, con el motor `.tbit` intacto.
+
+## Gap encontrado y corregido (causa raiz)
+
+`memoryCore` ejecutaba `loadIndex -> mutar -> saveIndexAndSyncQuery` (read-modify-write de `memory-core-index.json`) sin serializacion. Con escrituras concurrentes (18 agentes persistiendo via `onRunComplete`), dos secciones criticas se intercalaban y la ultima escritura pisaba a la anterior: **se perdian registros**.
+
+Correccion: mutex async en proceso (`withIndexWriteLock`, cola de promesas) envolviendo las seis rutas que mutan el indice: `rememberMemory`, `rememberMemoryBatch`, `indexExternalMemoryRecord`, `removeMemoryIndexRecord`, `deleteMemoryRecord`, `deleteMemoryRecordsBatch`. El storage fisico conserva su propia serializacion (`TBitStorageService.withOperation` + lock de archivo), que no se toco.
+
+## Pruebas de estres (suite nueva `tests/AgentConcurrencyStress.phase70.test.ts`)
+
+```text
+1. Enjambre de 18 agentes en paralelo (maxConcurrency 18) con persistencia automatica:
+   18/18 completados, 18 task.started con el taskId del enjambre, ids de evento unicos,
+   y las 18 ejecuciones presentes en Q-Vault (AI::AgentRuntime::*::taskId).
+2. 60 escrituras paralelas de registros externos: 60/60 presentes en el indice (cero perdidas).
+3. 18 escritores paralelos sobre la misma clave: registro unico, checksum sha256 consistente.
+4. Motor .tbit bajo 27 escrituras fisicas paralelas (18 claves + 9 sobre la misma clave):
+   19/19 recuperaciones INTEGRIDAD_CONFIRMADA, WAL append-only con cada id resuelto en
+   COMMITTED/ABORTED (ningun PENDING huerfano), checksum global calculable, sin bloqueos.
+```
+
+## Verificacion ejecutada
+
+```text
+npm test            -> 66/66 PASS (10 archivos, 4 tests nuevos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+```

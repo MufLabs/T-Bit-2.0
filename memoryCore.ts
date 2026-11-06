@@ -210,6 +210,29 @@ async function saveIndexAndSyncQuery(index: MemoryIndex): Promise<MemoryIndex> {
   return rebuilt;
 }
 
+/**
+ * Tanda 2 — Mutex async en proceso para el indice de memoria (causa raiz de
+ * condiciones de carrera). `loadIndex -> mutar -> saveIndexAndSyncQuery` es un
+ * read-modify-write de `memory-core-index.json`: sin serializacion, dos
+ * escrituras concurrentes (p. ej. 18 agentes persistiendo en paralelo) se
+ * pisaban y se perdian registros (ultimo en escribir gana).
+ *
+ * La cola de promesas garantiza que cada seccion critica observe el indice
+ * actualizado por la anterior. Es un mutex en proceso: el archivo solo se
+ * toca desde este modulo y el storage fisico tiene su propia serializacion
+ * (TBitStorageService.withOperation + lock de archivo).
+ */
+let indexWriteQueue: Promise<unknown> = Promise.resolve();
+
+async function withIndexWriteLock<T>(operation: () => Promise<T>): Promise<T> {
+  const run = indexWriteQueue.then(operation, operation);
+  indexWriteQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 function rebuildBacklinks(index: MemoryIndex): MemoryIndex {
   for (const record of Object.values(index.records)) record.backlinks = [];
   for (const record of Object.values(index.records)) {
@@ -269,14 +292,16 @@ function prepareMemoryRecord(request: MemoryCoreRememberRequest, index: MemoryIn
 
 export async function rememberMemory(storageLike: unknown, request: MemoryCoreRememberRequest): Promise<MemoryCoreRecord> {
   const storage = storageLike as DynamicStorage;
-  const index = await loadIndex();
-  const prepared = prepareMemoryRecord(request, index);
+  return withIndexWriteLock(async () => {
+    const index = await loadIndex();
+    const prepared = prepareMemoryRecord(request, index);
 
-  await callWrite(storage, prepared.key, prepared.payloadText);
+    await callWrite(storage, prepared.key, prepared.payloadText);
 
-  index.records[prepared.key] = prepared.record;
-  await saveIndexAndSyncQuery(index);
-  return index.records[prepared.key];
+    index.records[prepared.key] = prepared.record;
+    await saveIndexAndSyncQuery(index);
+    return index.records[prepared.key];
+  });
 }
 
 export async function rememberMemoryBatch(
@@ -286,64 +311,70 @@ export async function rememberMemoryBatch(
   if (requests.length === 0) return [];
 
   const storage = storageLike as DynamicStorage;
-  const index = await loadIndex();
-  const prepared = requests.map((request) => prepareMemoryRecord(request, index));
+  return withIndexWriteLock(async () => {
+    const index = await loadIndex();
+    const prepared = requests.map((request) => prepareMemoryRecord(request, index));
 
-  await callWriteMany(storage, prepared.map((item) => ({ key: item.key, payload: item.payloadText })));
+    await callWriteMany(storage, prepared.map((item) => ({ key: item.key, payload: item.payloadText })));
 
-  for (const item of prepared) {
-    index.records[item.key] = item.record;
-  }
+    for (const item of prepared) {
+      index.records[item.key] = item.record;
+    }
 
-  const saved = await saveIndexAndSyncQuery(index);
-  return prepared.map((item) => saved.records[item.key]);
+    const saved = await saveIndexAndSyncQuery(index);
+    return prepared.map((item) => saved.records[item.key]);
+  });
 }
 
 export async function indexExternalMemoryRecord(request: MemoryCoreRememberRequest & { key: string }): Promise<MemoryCoreRecord> {
-  const text = (request.text ?? normalizePayload(request.payload)).normalize("NFC");
-  const key = normalizeTBitKey(request.key);
-  if (!key) throw new Error("indexExternalMemoryRecord requiere key.");
+  return withIndexWriteLock(async () => {
+    const text = (request.text ?? normalizePayload(request.payload)).normalize("NFC");
+    const key = normalizeTBitKey(request.key);
+    if (!key) throw new Error("indexExternalMemoryRecord requiere key.");
 
-  const now = new Date().toISOString();
-  const links = extractQuantumLinks(text, request.links);
-  const tags = inferTags(text, request.tags);
-  const payload = request.payload ?? { text };
-  const checksum = sha256(normalizePayload(payload));
-  const index = await loadIndex();
+    const now = new Date().toISOString();
+    const links = extractQuantumLinks(text, request.links);
+    const tags = inferTags(text, request.tags);
+    const payload = request.payload ?? { text };
+    const checksum = sha256(normalizePayload(payload));
+    const index = await loadIndex();
 
-  index.records[key] = {
-    key,
-    userId: request.userId,
-    text,
-    payload,
-    checksum,
-    tags,
-    links,
-    backlinks: [],
-    source: request.source ?? "external",
-    createdAt: index.records[key]?.createdAt ?? now,
-    updatedAt: now,
-  };
+    index.records[key] = {
+      key,
+      userId: request.userId,
+      text,
+      payload,
+      checksum,
+      tags,
+      links,
+      backlinks: [],
+      source: request.source ?? "external",
+      createdAt: index.records[key]?.createdAt ?? now,
+      updatedAt: now,
+    };
 
-  await saveIndexAndSyncQuery(index);
-  return index.records[key];
+    await saveIndexAndSyncQuery(index);
+    return index.records[key];
+  });
 }
 
 export async function removeMemoryIndexRecord(keyInput: string): Promise<{ key: string; removedFromIndex: boolean }> {
-  const key = normalizeTBitKey(keyInput);
-  const index = await loadIndex();
-  const removedFromIndex = Boolean(index.records[key]);
+  return withIndexWriteLock(async () => {
+    const key = normalizeTBitKey(keyInput);
+    const index = await loadIndex();
+    const removedFromIndex = Boolean(index.records[key]);
 
-  if (removedFromIndex) {
-    delete index.records[key];
-    for (const record of Object.values(index.records)) {
-      record.links = record.links.filter((link) => link !== key);
-      record.backlinks = record.backlinks.filter((backlink) => backlink !== key);
+    if (removedFromIndex) {
+      delete index.records[key];
+      for (const record of Object.values(index.records)) {
+        record.links = record.links.filter((link) => link !== key);
+        record.backlinks = record.backlinks.filter((backlink) => backlink !== key);
+      }
+      await saveIndexAndSyncQuery(index);
     }
-    await saveIndexAndSyncQuery(index);
-  }
 
-  return { key, removedFromIndex };
+    return { key, removedFromIndex };
+  });
 }
 
 export async function recallMemory(storageLike: unknown, keyInput: string): Promise<MemoryCoreRecord & { rawPayload: string }> {
@@ -413,39 +444,42 @@ export async function deleteMemoryRecord(storageLike: unknown, keyInput: string)
 }> {
   const storage = storageLike as DynamicStorage;
   const key = normalizeTBitKey(keyInput);
-  const index = await loadIndex();
-  let collapsed = false;
-  let warning: string | undefined;
 
-  try {
-    await callCollapse(storage, key);
-    collapsed = true;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Error desconocido";
+  return withIndexWriteLock(async () => {
+    const index = await loadIndex();
+    let collapsed = false;
+    let warning: string | undefined;
 
-    if (!message.includes("Clave no registrada")) {
-      throw error;
+    try {
+      await callCollapse(storage, key);
+      collapsed = true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error desconocido";
+
+      if (!message.includes("Clave no registrada")) {
+        throw error;
+      }
+
+      warning = message;
     }
 
-    warning = message;
-  }
+    const removedFromIndex = Boolean(index.records[key]);
+    delete index.records[key];
 
-  const removedFromIndex = Boolean(index.records[key]);
-  delete index.records[key];
+    for (const record of Object.values(index.records)) {
+      record.links = record.links.filter((link) => link !== key);
+      record.backlinks = record.backlinks.filter((link) => link !== key);
+    }
 
-  for (const record of Object.values(index.records)) {
-    record.links = record.links.filter((link) => link !== key);
-    record.backlinks = record.backlinks.filter((link) => link !== key);
-  }
+    await saveIndexAndSyncQuery(index);
 
-  await saveIndexAndSyncQuery(index);
-
-  return {
-    key,
-    collapsed,
-    removedFromIndex,
-    warning,
-  };
+    return {
+      key,
+      collapsed,
+      removedFromIndex,
+      warning,
+    };
+  });
 }
 
 export async function deleteMemoryRecordsBatch(storageLike: unknown, keyInputs: string[]): Promise<Array<{
@@ -456,32 +490,35 @@ export async function deleteMemoryRecordsBatch(storageLike: unknown, keyInputs: 
 }>> {
   const storage = storageLike as DynamicStorage;
   const keys = [...new Set(keyInputs.map((key) => normalizeTBitKey(key)).filter(Boolean))];
-  const index = await loadIndex();
-  const collapsedResults = await callCollapseMany(storage, keys);
-  const collapsedByKey = new Map(collapsedResults.map((result) => [result.key, result]));
-  const removedKeys = new Set<string>();
-  const results: Array<{ key: string; collapsed: boolean; removedFromIndex: boolean; warning?: string }> = [];
 
-  for (const key of keys) {
-    const collapsed = collapsedByKey.get(key);
-    const removedFromIndex = Boolean(index.records[key]);
-    delete index.records[key];
-    removedKeys.add(key);
-    results.push({
-      key,
-      collapsed: Boolean(collapsed?.collapsed),
-      removedFromIndex,
-      warning: collapsed?.warning,
-    });
-  }
+  return withIndexWriteLock(async () => {
+    const index = await loadIndex();
+    const collapsedResults = await callCollapseMany(storage, keys);
+    const collapsedByKey = new Map(collapsedResults.map((result) => [result.key, result]));
+    const removedKeys = new Set<string>();
+    const results: Array<{ key: string; collapsed: boolean; removedFromIndex: boolean; warning?: string }> = [];
 
-  for (const record of Object.values(index.records)) {
-    record.links = record.links.filter((link) => !removedKeys.has(link));
-    record.backlinks = record.backlinks.filter((link) => !removedKeys.has(link));
-  }
+    for (const key of keys) {
+      const collapsed = collapsedByKey.get(key);
+      const removedFromIndex = Boolean(index.records[key]);
+      delete index.records[key];
+      removedKeys.add(key);
+      results.push({
+        key,
+        collapsed: Boolean(collapsed?.collapsed),
+        removedFromIndex,
+        warning: collapsed?.warning,
+      });
+    }
 
-  await saveIndexAndSyncQuery(index);
-  return results;
+    for (const record of Object.values(index.records)) {
+      record.links = record.links.filter((link) => !removedKeys.has(link));
+      record.backlinks = record.backlinks.filter((link) => !removedKeys.has(link));
+    }
+
+    await saveIndexAndSyncQuery(index);
+    return results;
+  });
 }
 
 export async function getMemoryGraph(userId?: string): Promise<MemoryGraph> {
