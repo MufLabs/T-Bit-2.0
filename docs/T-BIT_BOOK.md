@@ -6320,3 +6320,95 @@ npm test            -> 66/66 PASS (10 archivos, 4 tests nuevos)
 npm run logic:build -> PASS
 npx tsc --noEmit    -> 0 errores
 ```
+
+---
+
+# 25.37 Fase 71 - Tanda 2: Auditoria de proveedores IA y visibilidad del eslabon determinista
+
+## Objetivo
+
+Auditar uno por uno los proveedores del catalogo (Gemini, Grok/xAI, Qwen, Hermes, Ollama, LM Studio, OpenRouter y OpenAI-compatible dinamico), asegurar configuracion 100% por variables de entorno sin claves en el codigo, verificar el estado de nivel gratuito contra documentacion oficial (con fecha) y hacer visible cuando una respuesta proviene del eslabon determinista final.
+
+## Gaps encontrados y corregidos
+
+1. **Grok/xAI y Qwen exigian base URL sin default oficial.** Corregido: `https://api.x.ai/v1` (xAI, endpoint OpenAI-compatible oficial) y `https://dashscope.aliyuncs.com/compatible-mode/v1` (DashScope, modo compatible OpenAI de Qwen). Los overrides por env siguen teniendo prioridad.
+2. **La respuesta del chat no indicaba que proveedor sirvio realmente.** Corregido: `/api/ai/chat` devuelve ahora `providerInfo` del proveedor REAL que sirvio (`FallbackProviderChain.getLastServed()`), `provider` con su etiqueta y `deterministicFallback: boolean`. El frontend (`App.tsx`) muestra un aviso explicito en el chat cuando la respuesta viene del eslabon determinista: "AVISO T-BIT: esta respuesta proviene del ESLABON DETERMINISTA LOCAL (reglas fijas, sin modelo de IA)...". El mismo marcado existe para agentes (`AgentRunResult.deterministicFallback`, Fase 69).
+
+## Variables de entorno por proveedor (sin claves en el codigo)
+
+```text
+TBIT_AI_PROVIDER            id del proveedor solicitado (deterministic|openai|gemini|claude|grok|qwen|hermes|ollama|lmstudio|openai-compatible|openrouter)
+TBIT_AI_FALLBACK_CHAIN      cadena de failover por ids, ej: gemini,openrouter,ollama
+TBIT_AI_PROVIDER_TIMEOUT_MS timeout por intento (default 60000)
+TBIT_LOCAL_AI_PROVIDER_TIMEOUT_MS timeout para proveedores locales (default 180000)
+TBIT_AGENT_MAX_CONCURRENCY  concurrencia del pool de agentes (default 4)
+
+OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL
+GEMINI_API_KEY / GEMINI_BASE_URL / GEMINI_MODEL
+ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL / ANTHROPIC_MODEL
+XAI_API_KEY (alias GROK_API_KEY) / XAI_BASE_URL (alias GROK_BASE_URL) / XAI_MODEL (alias GROK_MODEL)
+QWEN_API_KEY / QWEN_BASE_URL / QWEN_MODEL
+HERMES_API_KEY / HERMES_BASE_URL / HERMES_MODEL
+OLLAMA_API_KEY / OLLAMA_BASE_URL / OLLAMA_MODEL
+LMSTUDIO_API_KEY / LMSTUDIO_BASE_URL / LMSTUDIO_MODEL
+OPENROUTER_API_KEY / OPENROUTER_BASE_URL / OPENROUTER_MODEL
+Legacy: TBIT_LLM_API_KEY / TBIT_LLM_MODEL / TBIT_LLM_BASE_URL
+```
+
+## Verificacion uno por uno (tests `tests/AiProviderFactory.phase71.test.ts`, 14 tests)
+
+```text
+deterministic      -> siempre disponible, sin configuracion (ultimo eslabon)
+openai             -> OpenAICompatibleProvider, https://api.openai.com/v1
+gemini             -> GeminiProvider nativo (generateContent)
+claude             -> AnthropicProvider nativo (messages)
+grok/xai           -> OpenAICompatibleProvider, https://api.x.ai/v1 (default nuevo)
+qwen               -> OpenAICompatibleProvider, DashScope compatible-mode (default nuevo)
+hermes             -> local, http://localhost:11434/v1, sin API key
+ollama             -> local, http://localhost:11434/v1, sin API key
+lmstudio           -> local, http://localhost:1234/v1, sin API key
+openai-compatible  -> dinamico, exige API key + base URL explicitas
+openrouter         -> https://openrouter.ai/api/v1
+Remotos sin clave  -> rechazados con error explicativo (nunca claves en codigo)
+Cadena de failover -> determinista agregado automaticamente como ultimo eslabon
+```
+
+## Verificacion contra la red real (fecha de comprobacion: 2026-11-05)
+
+```text
+Alcanzabilidad de endpoints (GET sin clave; 401/403 = endpoint operativo y autenticado):
+  openai            -> HTTP 401   OK
+  gemini            -> HTTP 403   OK
+  claude            -> HTTP 401   OK
+  grok/xai          -> HTTP 401   OK
+  qwen (DashScope)  -> HTTP 401   OK
+  openrouter        -> HTTP 200   OK (catalogo publico de modelos)
+  ollama/lmstudio   -> no activos en este entorno (esperado; son locales)
+
+Nivel gratuito (verificado contra documentacion oficial, 2026-11-05):
+  Gemini      -> SI: free tier en Google AI Studio ("Start building free of charge"),
+                 con acceso limitado a modelos (p. ej. Gemini 4 Argon NO esta en free tier).
+  OpenRouter  -> SI: 12 modelos con sufijo :free de 454 totales (verificado contra
+                 https://openrouter.ai/api/v1/models).
+  xAI (Grok)  -> SIN free tier verificado: pricing muestra solo modelos de pago
+                 (grok-4.7: $2/$6 por 1M tokens in/out).
+  OpenAI      -> API de pago (sin free tier de API verificado).
+  Claude      -> API de pago (sin free tier de API verificado).
+  Qwen        -> endpoint operativo; cuota gratuita de prueba NO VERIFICADA en la
+                 documentacion consultada.
+  Hermes      -> pesos abiertos, ejecutable local (gratuito como local). No verificado en runtime.
+  Ollama / LM Studio -> ejecucion local gratuita; no activos en este entorno.
+
+Failover real con claves: NO VERIFICADO. El archivo .env local no contiene claves de
+proveedores IA (solo secretos T-BIT: HMAC, cifrado, API key local). .env esta en
+.gitignore (verificado); ninguna clave fue impresa ni versionada.
+```
+
+## Verificacion ejecutada
+
+```text
+npm test            -> 80/80 PASS (11 archivos, 14 tests nuevos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+npm run build       -> PASS (vite 6.4.2, warning preexistente de chunk)
+```

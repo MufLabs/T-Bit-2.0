@@ -2734,6 +2734,15 @@ export default function App() {
         }
         const responseText = response.data ?? "Operacion completada.";
         pushAiMessage("Oraculo", responseText);
+        // Tanda 2 — Visibilidad del eslabon determinista: si la respuesta no
+        // provino de ninguna IA (proveedores agotados/enfriamiento), se avisa
+        // de forma explicita para no confundirla con una respuesta de IA.
+        if (response.deterministicFallback) {
+          pushAiMessage(
+            "Oraculo",
+            "⚠️ AVISO T-BIT: esta respuesta proviene del ESLABON DETERMINISTA LOCAL (reglas fijas, sin modelo de IA). Los proveedores de IA configurados fallaron, agotaron cuota o estan en enfriamiento. La respuesta puede ser limitada y no debe tratarse como generada por IA.",
+          );
+        }
         await autoSaveChatTurn(command, responseText, "provider_chat");
 
         const coordinates = response.meta?.coordinates ?? response.meta?.coordenadas;

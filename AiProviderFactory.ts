@@ -76,8 +76,9 @@ const AI_PROVIDER_CATALOG: AiProviderDescriptor[] = [
     label: "Grok / xAI",
     mode: "remote",
     defaultModel: "grok",
+    defaultBaseUrl: "https://api.x.ai/v1",
     requiresApiKey: true,
-    requiresBaseUrl: true,
+    requiresBaseUrl: false,
     protocol: "openai-compatible",
   },
   {
@@ -85,8 +86,9 @@ const AI_PROVIDER_CATALOG: AiProviderDescriptor[] = [
     label: "Qwen",
     mode: "remote",
     defaultModel: "qwen",
+    defaultBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     requiresApiKey: true,
-    requiresBaseUrl: true,
+    requiresBaseUrl: false,
     protocol: "openai-compatible",
   },
   {
@@ -377,7 +379,8 @@ export function createAiProviderRuntimeFromConfig(config?: AiProviderRuntimeConf
   }
 
   if (requested === "grok" || requested === "xai") {
-    const baseUrl = config?.baseUrl ?? env("XAI_BASE_URL") ?? env("GROK_BASE_URL") ?? legacyBaseUrl;
+    // Tanda 2: default oficial del endpoint OpenAI-compatible de xAI.
+    const baseUrl = config?.baseUrl ?? env("XAI_BASE_URL") ?? env("GROK_BASE_URL") ?? legacyBaseUrl ?? "https://api.x.ai/v1";
     return openAiCompatibleRuntime({
       id: "grok",
       label: "Grok / xAI",
@@ -389,7 +392,8 @@ export function createAiProviderRuntimeFromConfig(config?: AiProviderRuntimeConf
   }
 
   if (requested === "qwen") {
-    const baseUrl = config?.baseUrl ?? env("QWEN_BASE_URL") ?? legacyBaseUrl;
+    // Tanda 2: default oficial del modo compatible OpenAI de DashScope (Qwen).
+    const baseUrl = config?.baseUrl ?? env("QWEN_BASE_URL") ?? legacyBaseUrl ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
     return openAiCompatibleRuntime({
       id: "qwen",
       label: "Qwen",

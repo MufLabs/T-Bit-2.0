@@ -2006,12 +2006,28 @@ app.post("/api/ai/chat", requireSymbolicApiKey, async (req, res) => {
       },
     );
 
+    // Tanda 2 — Proveedor real que sirvio la respuesta (incluido el eslabon
+    // determinista final). Debe ser visible para no confundir una respuesta
+    // sin IA con una respuesta de IA.
+    const served = fallbackChain.getLastServed();
+    const servedRuntime: AiProviderRuntime = served
+      ? {
+          provider: requestProvider.provider,
+          id: served.id,
+          label: served.label,
+          model: served.model,
+          mode: served.mode,
+        }
+      : requestProvider;
+    const deterministicFallback = served?.mode === "deterministic";
+
     res.json({
       ok: true,
       ...response,
       toolResults: [...webResearchToolResults, ...(response.toolResults ?? [])],
-      provider: requestProvider.label,
-      providerInfo: aiProviderPublicView(requestProvider)
+      provider: servedRuntime.label,
+      providerInfo: aiProviderPublicView(servedRuntime),
+      deterministicFallback,
     });
   } catch (error) {
     res.status(500).json({

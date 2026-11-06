@@ -9,6 +9,8 @@ export type TBitChatClientResponse = {
   toolResults?: unknown[];
   provider?: string;
   providerInfo?: TBitAiProviderInfo;
+  /** Tanda 2 — true cuando la respuesta proviene del eslabon determinista final (sin IA). */
+  deterministicFallback?: boolean;
   meta?: TBitChatActionMeta | null;
   error?: string;
 };
