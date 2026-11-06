@@ -55,6 +55,7 @@ Cada tanda termina con: `npm test` en PASS, `npx tsc --noEmit` limpio, commit at
 
 - **Última tanda completada:** T4 — Skills dinámicas (Fase 67). 57/57 tests PASS, smoke real del ejecutor de herramientas: buscar/ejecutar/instalar skill con verificación de integridad. Libro actualizado (sección 25.33).
 - **Última tanda completada:** T5 — UX del runtime multi-agente (Fase 68). `AgentRuntimePanel` montado en Q-Vault OS; build frontend PASS, 57/57 tests. Libro actualizado (sección 25.34).
-- **Siguiente acción:** cierre final — regenerar `INFORME_EVOLUCION.md` con evidencia completa, auditoría final de no regresión (`npm test`, `logic:build`, `build`) y commit de cierre.
+- **Tanda 2 en curso (2026-11-05):** Punto 1 HECHO (Fase 69): agentes reales contra la cadena de failover con atribución de proveedor (`providerId`/`providerMode`/`deterministicFallback`) y verificación con mock OpenAI-compatible (429/503/timeout). 62/62 tests, tsc limpio. Commit pendiente de registrar.
+- **Pendiente Tanda 2:** Punto 2 (concurrencia: mutex en memoryCore + estrés 18 agentes), Punto 3 (defaults oficiales Grok/xAI y Qwen, free-tier con fecha, visibilidad del eslabón determinista en UI), Punto 4 (anti-alucinación en TBitChatEngine), Punto 5 (skills remotas verificadas con red), cierre INFORME_EVOLUCION.md "Tanda 2".
 - **Comandos de verificación:** `npm test`, `npm run logic:build`, `npx tsc --noEmit`, `npm run build`.
 - **Nota de entorno:** en PowerShell, `npm ... 2>&1` convierte los avisos de stderr de npm en errores falsos; ejecutar los comandos npm sin redirección.

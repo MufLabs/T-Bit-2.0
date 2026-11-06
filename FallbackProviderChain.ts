@@ -31,6 +31,13 @@ export type ProviderHealth = {
   avgLatencyMs: number | null;
 };
 
+export type ServedProviderInfo = {
+  id: string;
+  label: string;
+  model: string;
+  mode: AiProviderRuntime["mode"];
+};
+
 export type FallbackProviderChainOptions = {
   /** Enfriamiento estandar tras un fallo recuperable. Default 30 s. */
   cooldownMs?: number;
@@ -83,6 +90,7 @@ export function classifyProviderFailure(error: unknown): {
 export class FallbackProviderChain implements AiProvider {
   readonly label = "T-BIT Fallback Chain";
   private readonly entries: EntryState[];
+  private lastServed: ServedProviderInfo | null = null;
   private readonly options: Required<Omit<FallbackProviderChainOptions, "onFailover">> & Pick<FallbackProviderChainOptions, "onFailover">;
 
   constructor(runtimes: AiProviderRuntime[], options: FallbackProviderChainOptions = {}) {
@@ -105,6 +113,15 @@ export class FallbackProviderChain implements AiProvider {
 
   get size(): number {
     return this.entries.length;
+  }
+
+  /**
+   * Tanda 2 — Proveedor que sirvio la ultima respuesta COMPLETADA con exito.
+   * Permite atribuir cada respuesta al proveedor real (incluido el eslabon
+   * determinista final) para que la UI y la API puedan marcarla como tal.
+   */
+  getLastServed(): ServedProviderInfo | null {
+    return this.lastServed;
   }
 
   getHealth(): ProviderHealth[] {
@@ -145,6 +162,12 @@ export class FallbackProviderChain implements AiProvider {
         const response = await this.withTimeout(entry.runtime.provider.generateWithTools(request), entry.runtime.label);
         entry.latencies.push(Date.now() - startedAt);
         if (entry.latencies.length > MAX_LATENCY_SAMPLES) entry.latencies.shift();
+        this.lastServed = {
+          id: entry.runtime.id,
+          label: entry.runtime.label,
+          model: entry.runtime.model,
+          mode: entry.runtime.mode,
+        };
         return response;
       } catch (error) {
         entry.totalFailures += 1;

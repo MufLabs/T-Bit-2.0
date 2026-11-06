@@ -6238,3 +6238,50 @@ npm run build      -> PASS (vite 6.4.2, 2365 modulos; warning preexistente de ch
 npm run logic:build -> PASS
 npm test           -> 57/57 PASS
 ```
+
+---
+
+# 25.35 Fase 69 - Tanda 2: Agentes reales contra la cadena de failover
+
+## Objetivo
+
+Garantizar que cada agente ejecuta su especificacion contra el proveedor activo de la cadena de IA (con failover 429/5xx/timeout), usando el eslabon determinista unicamente como ultimo recurso, y que la respuesta queda atribuida al proveedor real que la sirvio.
+
+## Gap encontrado y corregido (causa raiz)
+
+`/api/agents/run` y `/api/agents/swarm` creaban `AgentOrchestrator` sin `providerFactory`; el metodo `resolveRuntime` caia a `createAiProviderRuntime()` (UN runtime unico, sin cadena). Con un proveedor remoto configurado, un 429/503/timeout fallaba la ejecucion del agente sin conmutar y sin recurrir al determinista.
+
+Correccion:
+
+- `AgentOrchestrator.resolveRuntime` (default) construye ahora una `FallbackProviderChain` por ejecucion (env `TBIT_AI_PROVIDER` + `TBIT_AI_FALLBACK_CHAIN`), con el determinista como ultimo eslabon. Import dinamico (`await import`) compatible ESM/vitest/tsx.
+- `FallbackProviderChain` expone `getLastServed(): ServedProviderInfo | null` (id/label/model/mode del proveedor que completo con exito la ultima generacion).
+- `AgentRunResult` registra `providerId`, `providerMode` y `deterministicFallback` (true cuando respondio el eslabon determinista final), para que API e interfaz puedan marcar la respuesta como "sin IA".
+
+## Verificacion con servidor simulado OpenAI-compatible (429/503/timeout)
+
+Suite nueva `tests/AgentRealProviders.phase69.test.ts` (5 tests) contra un servidor HTTP local que responde por modelo:
+
+```text
+openai (gpt-4o-mini) -> 429 Rate limit exceeded
+grok                 -> 503 Service unavailable
+qwen                 -> 200 MOCK-OK
+slow-model           -> 400 ms de delay (escenario timeout)
+```
+
+Resultados registrados:
+
+```text
+1. Cadena openai,grok,qwen: 429 -> 503 -> exito en qwen; resultado providerId=qwen, deterministicFallback=false.
+2. Cadena openai (solo 429): el eslabon determinista final responde; providerId=deterministic, deterministicFallback=true.
+3. Timeout (80 ms) sobre proveedor lento: conmutacion al siguiente eslabon sin colgar la ejecucion.
+4. Los 18 agentes ejecutan su especificacion completa contra el proveedor simulado: 18/18 completed con salida real.
+5. Los 18 agentes con solo el eslabon determinista: 18/18 completed, deterministicFallback=true (degradacion visible, no silenciosa).
+```
+
+## Verificacion ejecutada
+
+```text
+npm test            -> 62/62 PASS (9 archivos, 5 tests nuevos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+```

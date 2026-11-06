@@ -1,5 +1,6 @@
-import type { AiMessage, AiProviderRequest } from "../../AiProvider";
+import type { AiMessage, AiProvider, AiProviderRequest } from "../../AiProvider";
 import type { AiProviderRuntime } from "../../AiProviderFactory";
+import type { ServedProviderInfo } from "../../FallbackProviderChain";
 import { AgentEventBus, getAgentEventBus, type AgentEvent } from "./AgentEventBus";
 import {
   buildAgentSystemPrompt,
@@ -35,6 +36,16 @@ export type AgentRunResult = {
   providerLabel: string;
   model: string;
   latencyMs: number;
+  /** Tanda 2 — id del proveedor que realmente sirvio la respuesta. */
+  providerId?: string;
+  /** Tanda 2 — modo del proveedor que realmente sirvio la respuesta. */
+  providerMode?: "deterministic" | "remote" | "local";
+  /**
+   * Tanda 2 — true cuando la respuesta proviene del eslabon determinista final
+   * (sin IA remota/local disponible). Debe ser visible para no confundirla con
+   * una respuesta de IA.
+   */
+  deterministicFallback?: boolean;
   error?: string;
 };
 
@@ -266,22 +277,48 @@ export class AgentOrchestrator {
     return this.bus.publish({ type: "message.sent", from, to, taskId, payload });
   }
 
-  private resolveRuntime(spec: AgentSpec): AiProviderRuntime {
+  /**
+   * Tanda 2 — Resolucion de proveedor por defecto: cada agente ejecuta su
+   * especificacion contra la cadena de failover activa (env TBIT_AI_PROVIDER +
+   * TBIT_AI_FALLBACK_CHAIN), usando el eslabon determinista unicamente como
+   * ultimo recurso. La cadena se crea por ejecucion para poder atribuir la
+   * respuesta al proveedor real que la sirvio (getLastServed).
+   */
+  private async resolveRuntime(spec: AgentSpec): Promise<AiProviderRuntime> {
     if (this.options.providerFactory) {
       return this.options.providerFactory(spec);
     }
-    // Import diferido para no acoplar el modulo a la factory en tests.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { createAiProviderRuntime } = require("../../AiProviderFactory") as typeof import("../../AiProviderFactory");
-    return createAiProviderRuntime();
+    // Import dinamico para no acoplar el modulo a la factory en tests
+    // (compatible con ESM/vitest y con el runtime tsx del servidor).
+    const { createFallbackProviderChain } = await import("../../AiProviderFactory");
+    const chain = createFallbackProviderChain();
+    return {
+      provider: chain,
+      id: "fallback-chain",
+      label: chain.size > 1 ? `T-BIT Failover (${chain.size} proveedores)` : "T-BIT Local",
+      model: "auto",
+      mode: "remote",
+    };
+  }
+
+  /** Tanda 2 — Lee el proveedor real que sirvio la respuesta, si el provider lo expone. */
+  private readServedProvider(runtime: AiProviderRuntime): ServedProviderInfo | null {
+    const maybe = runtime.provider as AiProvider & { getLastServed?: () => ServedProviderInfo | null };
+    if (typeof maybe.getLastServed !== "function") return null;
+    try {
+      return maybe.getLastServed();
+    } catch {
+      return null;
+    }
   }
 
   private async runAgentWithTaskId(spec: AgentSpec, request: AgentRunRequest, taskId: string): Promise<AgentRunResult> {
-    const runtime = this.resolveRuntime(spec);
+    const runtime = await this.resolveRuntime(spec);
     const startedAt = Date.now();
     this.bus.publish({ type: "task.started", from: spec.name, taskId, payload: { task: request.task } });
     try {
       const output = await this.pool.run(() => this.executeWithTools(spec, runtime, request, taskId));
+      const served = this.readServedProvider(runtime);
       const result: AgentRunResult = {
         agent: spec.name,
         agentFile: spec.file,
@@ -289,9 +326,12 @@ export class AgentOrchestrator {
         status: "completed",
         output,
         toolCalls: 0,
-        providerLabel: runtime.label,
-        model: runtime.model,
+        providerLabel: served?.label ?? runtime.label,
+        model: served?.model ?? runtime.model,
         latencyMs: Date.now() - startedAt,
+        providerId: served?.id ?? runtime.id,
+        providerMode: served?.mode ?? runtime.mode,
+        deterministicFallback: served?.mode === "deterministic",
       };
       this.bus.publish({ type: "task.completed", from: spec.name, taskId, payload: { latencyMs: result.latencyMs } });
       if (this.options.onRunComplete) {
@@ -313,6 +353,9 @@ export class AgentOrchestrator {
         providerLabel: runtime.label,
         model: runtime.model,
         latencyMs: Date.now() - startedAt,
+        providerId: runtime.id,
+        providerMode: runtime.mode,
+        deterministicFallback: false,
         error: error instanceof Error ? error.message : "Error desconocido",
       };
       this.bus.publish({ type: "task.failed", from: spec.name, taskId, payload: { error: result.error } });
