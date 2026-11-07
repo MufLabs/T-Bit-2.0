@@ -34,9 +34,9 @@ import { reconcileContainerHealth } from "./healthReconciliation";
 import { getAiPermissionsPolicy, updateAiPermissionsPolicy } from "./aiPermissions";
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 import express, { Request, Response } from "express";
-import { existsSync, statSync } from "fs";
+import { existsSync, rmSync, statSync } from "fs";
 import { promises as fs, readFileSync } from "fs";
-import { resolve } from "path";
+import { dirname, resolve } from "path";
 import { AllocationMap, AllocationRange } from "./AllocationMap";
 import { TBitContainer } from "./TBitFileSystem";
 import { TBitStorageService } from "./TBitStorageService";
@@ -391,6 +391,89 @@ async function withFileLock<T>(operation: () => Promise<T>): Promise<T> {
     await fs.rm(lockPath, { force: true });
   }
 }
+/**
+ * Guard de instancia unica del servidor (portabilidad Tanda 3).
+ *
+ * La exclusion mutua del indice de memoria (`withIndexWriteLock` en memoryCore)
+ * es SOLO intraproceso: si dos procesos de servidor apuntaran al mismo
+ * almacenamiento, las escrituras de los indices JSON podrian interleavarse.
+ * Este guard impide ese escenario: solo un proceso de servidor puede activarse
+ * sobre un mismo directorio de trabajo/almacenamiento.
+ *
+ * Multiplataforma por construccion: usa creacion exclusiva (`wx`, equivalente a
+ * O_EXCL en POSIX y Windows), deteccion de lock huerfano por mtime y `rmSync`,
+ * sin comandos de shell ni APIs especificas de un sistema operativo.
+ */
+const SERVER_INSTANCE_LOCK_PATH = resolve(process.cwd(), "data", "server-instance.lock");
+let serverInstanceLockHandle: fs.FileHandle | undefined;
+
+function releaseServerInstanceLockSync(): void {
+  if (!serverInstanceLockHandle) return;
+  serverInstanceLockHandle = undefined;
+  try {
+    rmSync(SERVER_INSTANCE_LOCK_PATH, { force: true });
+  } catch {
+    // El lock huerfano se reclama por antiguedad (STALE_LOCK_MS) en el proximo arranque.
+  }
+}
+
+async function acquireServerInstanceLock(): Promise<void> {
+  await fs.mkdir(dirname(SERVER_INSTANCE_LOCK_PATH), { recursive: true });
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      serverInstanceLockHandle = await fs.open(SERVER_INSTANCE_LOCK_PATH, "wx");
+      await serverInstanceLockHandle.writeFile(
+        JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }),
+        "utf8",
+      );
+      process.once("exit", releaseServerInstanceLockSync);
+      for (const signal of ["SIGINT", "SIGTERM"] as const) {
+        process.once(signal, () => {
+          releaseServerInstanceLockSync();
+          process.exit(0);
+        });
+      }
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+
+      // Este lock se retiene durante TODA la vida del servidor, por lo que la
+      // antiguedad (mtime) no indica huerfandad: un servidor sano puede llevar
+      // horas activo. La vitalidad del titular se comprueba por PID (senal 0).
+      let holderAlive = false;
+      try {
+        const raw = await fs.readFile(SERVER_INSTANCE_LOCK_PATH, "utf8");
+        const holderPid = Number((JSON.parse(raw) as { pid?: number }).pid);
+        if (Number.isFinite(holderPid) && holderPid > 0 && holderPid !== process.pid) {
+          try {
+            process.kill(holderPid, 0);
+            holderAlive = true;
+          } catch (killError) {
+            holderAlive = (killError as NodeJS.ErrnoException).code === "EPERM";
+          }
+        }
+      } catch {
+        holderAlive = false;
+      }
+
+      if (holderAlive) {
+        break;
+      }
+
+      // Lock huerfano (proceso titular muerto o archivo ilegible): se reclama.
+      await fs.rm(SERVER_INSTANCE_LOCK_PATH, { force: true });
+    }
+  }
+
+  throw new Error(
+    "SERVER_ALREADY_RUNNING: ya existe un proceso T-BIT API sobre este almacenamiento. " +
+      "La exclusion mutua del indice es intraproceso; no lance multiples servidores sobre el mismo vault.",
+  );
+}
+
 
 function loadLocalEnv(): void {
   const envPath = resolve(process.cwd(), ".env");
@@ -1500,6 +1583,7 @@ app.post("/api/ai/oracle", async (request: Request, response: Response) => {
 
 startupRecovery()
   .then(() => aiStorage.recover())
+  .then(() => acquireServerInstanceLock())
   .then(() => {
 const requireSymbolicApiKey = (req: any, res: any, next: any) => {
   const expectedApiKey = process.env.TBIT_API_KEY ?? process.env.VITE_TBIT_API_KEY;

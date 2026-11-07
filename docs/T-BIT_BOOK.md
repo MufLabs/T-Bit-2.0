@@ -4570,6 +4570,71 @@ La solucion separa responsabilidades:
 
 ## Verificación
 
+
+## Fase 74 (Tanda 3, punto 1) — Auditoría de portabilidad y guard de instancia única
+
+Fecha: 2026-11-07. Rama: `feature/evolucion-tbit`.
+
+### Auditoría de portabilidad (resultados verificados)
+
+Búsqueda sistemática en todo el código y scripts de `package.json`:
+
+| Punto auditado | Resultado | Evidencia |
+|---|---|---|
+| Rutas absolutas / separadores Windows | Limpio | Cero backslashes en literales de ruta; todo el código usa `path.join`/`path.resolve`/`path.dirname` (`tbitRuntimePaths.ts`, `TBitStorageService.ts`, `server.ts`) |
+| Comandos de shell específicos en scripts npm | Limpio | Todos los scripts usan `node`/`tsx`/`tsc`/`vite`; `scripts/dev-vite.cjs` usa `spawn(process.execPath, ..., { shell: false })` |
+| `child_process` en código de aplicación | Limpio | Solo en `scripts/*.cjs` (dev tooling), nunca en el runtime |
+| Mayúsculas/minúsculas en imports | Limpio | `forceConsistentCasingInFileNames: true` en ambos tsconfig; `tsc --noEmit` en 0 errores |
+| Finales de línea | Limpio | `.gitattributes` con `* text=auto`; los parsers de agentes ya aceptan `\r?\n` |
+| APIs de archivo | Limpio | Motor `.tbit` usa solo APIs POSIX-compatibles de Node (`openSync`, `ftruncateSync`, `fsyncSync`); sin `process.platform` ni rutas condicionales por SO |
+| Locks de contenedor | Limpio | `fs.open(lockPath, "wx")` (creación exclusiva O_EXCL, válida en Windows y POSIX) + detección de lock huérfano por mtime + `fs.rm(force)` |
+| Escritura atómica de metadata | Limpio | Patrón temp + `fs.rename` (atómico en POSIX; en Windows Node usa `MoveFileEx` con reemplazo) |
+
+### Gap encontrado y corregido: exclusión mutua del índice solo intraproceso
+
+`withIndexWriteLock` (memoryCore, Fase 70) es un mutex **intraproceso**. Si dos procesos de
+servidor apuntaran al mismo almacenamiento, las escrituras de los índices JSON
+(`memory-core-index.json`, `query-index.json`, `semantic-index.json`) podrían interleavarse.
+
+**Corrección (causa raíz, no documentación pasiva):** se añadió en `server.ts` un
+**guard de instancia única** (`acquireServerInstanceLock`) que impide activar dos procesos
+T-BIT API sobre el mismo directorio de trabajo/almacenamiento:
+
+- Lock en `data/server-instance.lock` con creación exclusiva (`wx`), multiplataforma por construcción.
+- **Vitalidad del titular por PID (señal 0)**, no por antigüedad: este lock se retiene durante
+  toda la vida del servidor, por lo que el mtime no indica huerfandad (un servidor sano puede
+  llevar horas activo). Si el proceso titular está muerto, el lock huérfano se reclama en el
+  siguiente arranque.
+- Liberación en `exit`/`SIGINT`/`SIGTERM`; ante muerte forzada, el reclamo por PID muerto
+  cubre el reinicio.
+- Si existe otro servidor vivo: el arranque falla con error explícito
+  `SERVER_ALREADY_RUNNING` en lugar de corromper índices silenciosamente.
+
+### Verificación en runtime (Windows, 2026-11-07)
+
+```text
+1. Servidor arranca            -> lock creado y presente mientras vive
+2. Segunda instancia           -> rechazada: SERVER_ALREADY_RUNNING (no llega a listen)
+3. Lock no es robado           -> sigue presente tras el rechazo
+4. taskkill /F (muerte forzada)-> lock huérfano queda en disco
+5. Reinicio tras muerte forzada-> reclama el lock por PID muerto y arranca correctamente
+6. Guard sigue operativo       -> segunda instancia vuelve a ser rechazada
+npm test -> 89/89 PASS; logic:build PASS; tsc --noEmit 0 errores
+```
+
+Nota: la exclusión mutua del índice sigue siendo intraproceso por diseño; el guard garantiza
+que nunca haya más de un proceso de servidor sobre el mismo vault, que es la condición bajo
+la cual eso es seguro. El empaquetado de escritorio (punto 5 de esta tanda) no debe lanzar
+procesos paralelos sobre el mismo almacenamiento.
+
+## Verificación ejecutada
+
+```text
+npm test            -> 89/89 PASS (13 archivos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+```
+
 - `npm run logic:build`
 - `npm run build`
 
