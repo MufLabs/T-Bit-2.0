@@ -136,3 +136,85 @@ npm run build       -> PASS (vite 6.4.2; warning preexistente de tamaño de chun
 - Persistencia completa del journal de eventos y bundle frontend monolítico (deuda preexistente).
 - Interfaz y empaquetado multiplataforma (explícitamente excluidos de la Tanda 2).
 
+---
+
+# TANDA 3 — Interfaz, UX y multiplataforma (2026-11-07)
+
+Rama: `feature/evolucion-tbit`. Commits: `be6ceea` (F74), `7369732` (F75), `8f18333` (F76),
+`96f6e65` (F77), `c19d034` (F78). Línea base heredada verificada: 89/89 tests, tsc 0 errores,
+build PASS. Fuente documental: `docs/T-BIT_BOOK.md` (Fases 74–78 añadidas).
+
+## Qué se verificó (con evidencia ejecutada)
+
+1. **Auditoría de portabilidad (F74).** 8 puntos auditados en todo el código y scripts npm:
+   rutas/separadores, comandos de shell, `child_process`, casing de imports, finales de línea,
+   APIs de archivo, locks de contenedor (`wx` + mtime) y escritura atómica (temp+rename).
+   Resultado: todo multiplataforma por construcción. Gap real encontrado y corregido por
+   causa raíz: `withIndexWriteLock` es solo intraproceso → nuevo guard de instancia única en
+   `server.ts` (`acquireServerInstanceLock`: lock `wx` + vitalidad del titular por PID señal 0,
+   reclamo de huérfanos). Verificado en runtime con 5 escenarios: arranque, rechazo de segunda
+   instancia (`SERVER_ALREADY_RUNNING`), no-robo del lock, muerte forzada (`taskkill /F`) y
+   reclamo al reiniciar. Durante la verificación se detectó y corrigió un bug del propio guard:
+   la detección de huérfanos por mtime (60 s) robaba el lock de un servidor vivo; se sustituyó
+   por comprobación de vitalidad por PID.
+2. **CI multiplataforma (F75).** `.github/workflows/ci.yml` creado con matriz
+   ubuntu/macos/windows: `npm ci`, `logic:build`, `tsc --noEmit`, `npm test`, `npm run build`.
+   Sin push en esta sesión (según directiva).
+3. **Interfaz y experiencia asistente (F76).** Design system aditivo en `index.css` (tokens,
+   primitivas `.tbit-*`, foco visible, `prefers-reduced-motion`, scrollbars); estados
+   accesibles de carga/vacío/error (`src/components/ui/StateViews.tsx`) integrados en
+   `AgentRuntimePanel`; aviso del eslabón determinista como banner ámbar distintivo
+   (`kind: "deterministic-notice"`) y chip "Motor de respuesta" en el chat de Q-Vault OS.
+   Quantum Engine intacto.
+4. **Empaquetado de escritorio (F77).** Sin tecnología previa definida (el libro decía "no hay
+   instalador desktop todavía"). Elegida la opción más ligera sin dependencias nuevas
+   (D-005): `scripts/launch-desktop.cjs` (`npm run start:desktop`) + serving del frontend
+   construido desde el proceso del API (fallback SPA que excluye `/api`). Smoke real en
+   Windows: frontend HTTP 200, API 401 sin clave (auth intacta), un solo proceso sobre el
+   vault, navegador abierto.
+5. **Conectores locales (F78).** Sondeo real: Ollama (11434) y LM Studio (1234) NO
+   ACCESIBLES (ECONNREFUSED).
+6. **Rendimiento de carga (F78).** `manualChunks` por paquete en `vite.config.ts`. Medición
+   real: 1 chunk de 1.403,10 kB → 7 fragmentos (app 261,57 kB; three-core 810,57 kB aislado;
+   react 260,27 kB; fiber/drei/misc <32 kB). Verificado en runtime: frontend 200 y chunk de
+   app cargando (261.437 bytes) vía el lanzador.
+
+## Qué falló y qué se corrigió
+
+- **TS6305 al inicio de sesión:** `dist/` obsoleto respecto a fuentes al ejecutar `tsc
+  --noEmit` antes/ durante `logic:build`. Ya documentado como procedimiento (no bug de código).
+- **Bug del guard de instancia (detectado en la propia verificación):** la detección de lock
+  huérfano por mtime (STALE_LOCK_MS = 60 s) consideraba huérfano el lock de un servidor vivo
+  con más de 60 s de actividad, permitiendo que una segunda instancia lo robara. Corregido por
+  causa raíz: vitalidad por PID (señal 0), con EPERM tratado como "vivo". Re-verificado en los
+  5 escenarios.
+- **Import con ruta incorrecta** (`../ui/StateViews` → `./ui/StateViews`): detectado por
+  `tsc` y por `vite build`; corregido de inmediato.
+
+## Qué quedó NO VERIFICADO (regla de veracidad)
+
+- **Paridad macOS/Linux:** el flujo CI existe pero no se ha ejecutado (no se hace push en esta
+  sesión). Todo lo verificado en esta tanda lo fue solo en Windows.
+- **Visual de la interfaz:** no hay herramienta de navegador disponible; el resultado visual
+  (design system, banner determinista, chip) queda NO VERIFICADO por captura. Verificado por
+  compilación, tipos y suite.
+- **Ollama / LM Studio en runtime:** sin servidores locales accesibles (ECONNREFUSED); los
+  conectores existen y están configurados por variables de entorno, pero no se probaron contra
+  un servidor real.
+- **Instalador nativo:** no se produce (.msi/.dmg/.AppImage); el empaquetado requiere Node
+  instalado. Documentado en D-005.
+- **Carga bajo demanda total de Quantum Engine:** diferida por alto riesgo de regresión
+  (extraer la escena 3D de `App.tsx`, 5.5k líneas); registrado como limitación en el libro.
+
+## Estado final de la Tanda 3
+
+```text
+npm test            -> 89/89 PASS (13 archivos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+npm run build       -> PASS (7 fragmentos; antes 1 chunk de 1.403 kB)
+Árbol limpio en feature/evolucion-tbit; libro actualizado (Fases 74-78);
+PLAN_EVOLUCION.md y DECISIONES_EVOLUCION.md (D-005) al día.
+```
+
+
