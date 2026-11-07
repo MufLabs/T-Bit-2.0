@@ -4720,6 +4720,60 @@ Alternativa desarrollo: npm run dev:all  (API en 3000 + Vite dev en 5173)
 node scripts/launch-desktop.cjs ->
   [desktop] Arrancando T-BIT API (proceso unico)
   T-BIT API activa en http://localhost:3000
+
+## Fase 78 (Tanda 3, puntos 6 y 7) — Conectores locales y rendimiento de carga
+
+Fecha: 2026-11-07. Rama: `feature/evolucion-tbit`.
+
+### Punto 6 — Ollama / LM Studio en runtime
+
+Sondeo real de servidores locales (2026-11-07, timeout 2,5 s):
+
+```text
+ollama  http://127.0.0.1:11434/api/tags -> NO ACCESIBLE (ECONNREFUSED)
+lmstudio http://127.0.0.1:1234/v1/models -> NO ACCESIBLE (ECONNREFUSED)
+```
+
+No hay servidores locales activos en este entorno: la verificación en runtime de los
+conectores `ollama` y `lmstudio` (presentes en `AiProviderFactory.ts`, configurables por
+`OLLAMA_*` / `LMSTUDIO_*` y endpoints OpenAI-compatibles) queda **NO VERIFICADO**. No se
+inventan resultados.
+
+### Punto 7 — Rendimiento de carga (división del bundle)
+
+`vite.config.ts` incorpora `manualChunks` por paquete (sin cambiar de tecnología). Medición
+real con `npm run build`:
+
+```text
+ANTES  : 1 chunk JS de 1.403,10 kB (gzip 390,91 kB) + aviso >500 kB
+DESPUES: 7 fragmentos paralelizables y cacheables:
+  index (codigo de la app)      261,57 kB | gzip  64,77 kB
+  vendor-react                  260,27 kB | gzip  80,92 kB
+  vendor-three-core (three.js)  810,57 kB | gzip 217,63 kB
+  vendor-fiber                   29,65 kB | gzip  11,40 kB
+  vendor-drei                     6,52 kB | gzip   2,75 kB
+  vendor-misc                    31,17 kB | gzip  13,52 kB
+  CSS                            53,04 kB | gzip  10,47 kB
+```
+
+El código propio de la aplicación pasó de 1.403 kB a 261 kB. `three.js` (810 kB) queda
+aislado en su propio fragmento: es el peso de la librería 3D y no es reducible sin cambiar
+de tecnología (guardarraíl). Verificado en runtime: el frontend servido por el proceso del
+API responde 200 y el fragmento de la app carga correctamente (261.437 bytes).
+
+**Limitación documentada:** la carga bajo demanda total de Quantum Engine exigiría extraer
+la escena 3D desde `App.tsx` (5.5k líneas) a componentes con `React.lazy`; se difiere por
+alto riesgo de regresión, registrando la decisión aquí.
+
+## Verificación ejecutada
+
+```text
+npm test            -> 89/89 PASS (13 archivos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+npm run build       -> PASS (7 fragmentos)
+```
+
   Q-Vault OS (frontend construido) disponible en http://localhost:3000
   [desktop] Abriendo Q-Vault OS en http://localhost:3000
 GET /                -> 200 (index.html servido por el proceso del API)
