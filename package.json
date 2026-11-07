@@ -19,6 +19,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "logic:build": "tsc --project tsconfig.node.json",
     "logic:start": "npm run logic:build && node dist/index.js",
+    "start:desktop": "node scripts/launch-desktop.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "agents:inventory": "node scripts/agent-inventory.cjs"

@@ -4685,6 +4685,60 @@ del sistema; iconos decorativos marcados `aria-hidden`; sección con `aria-label
   activo y su modelo; cuando el modo es determinista, el chip cambia a estado de advertencia
   con explicación en el tooltip.
 - Quantum Engine permanece intacto como consola técnica (los cambios en su chat son solo el
+
+## Fase 77 (Tanda 3, punto 5) — Empaquetado de escritorio multiplataforma
+
+Fecha: 2026-11-07. Rama: `feature/evolucion-tbit`. Decisión registrada: `DECISIONES_EVOLUCION.md` D-005.
+
+El libro declaraba "no hay instalador desktop todavía" y ninguna tecnología de empaquetado
+estaba definida en el código. Se eligió la opción más ligera compatible con el stack
+(cero dependencias nuevas; Electron/Tauri rechazados y justificados en D-005):
+
+- **`scripts/launch-desktop.cjs`** (script npm `start:desktop`): construye los artefactos si
+  faltan (vite build / tsc con el toolchain ya instalado), arranca UN único proceso
+  `node dist/server.js` y abre el navegador del sistema (`start`/`open`/`xdg-open` según
+  `process.platform`, solo en el lanzador).
+- **`server.ts`**: cuando existe `dist/index.html`, sirve el frontend construido desde el
+  mismo proceso (middleware estático aditivo + fallback SPA con regex que excluye `/api`).
+  No se altera ninguna ruta existente y no se lanza ningún segundo proceso sobre el vault,
+  en coherencia con el guard de instancia única (Fase 74).
+
+### Procedimiento de instalación y arranque (las tres plataformas)
+
+```text
+Requisito comun: Node.js 20+ instalado.
+1. npm install
+2. npm run setup:secret        (configura la API key local; ver seccion de secretos)
+3. npm run start:desktop       (construye si falta y abre Q-Vault OS en el navegador)
+
+Alternativa desarrollo: npm run dev:all  (API en 3000 + Vite dev en 5173)
+```
+
+### Verificación en runtime (Windows, 2026-11-07)
+
+```text
+node scripts/launch-desktop.cjs ->
+  [desktop] Arrancando T-BIT API (proceso unico)
+  T-BIT API activa en http://localhost:3000
+  Q-Vault OS (frontend construido) disponible en http://localhost:3000
+  [desktop] Abriendo Q-Vault OS en http://localhost:3000
+GET /                -> 200 (index.html servido por el proceso del API)
+GET /api/ai/provider -> 401 sin API key (autenticacion intacta)
+Un solo proceso node sobre el almacenamiento del vault.
+```
+
+**NO VERIFICADO:** arranque del lanzador en macOS y Linux (se validará con el flujo CI de la
+Fase 75). No hay instalador nativo (.msi/.dmg/.AppImage); se requiere Node instalado.
+
+## Verificación ejecutada
+
+```text
+npm test            -> 89/89 PASS (13 archivos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+npm run build       -> PASS
+```
+
   campo opcional `kind`, sin alterar su renderizado).
 
 ### Veracidad visual

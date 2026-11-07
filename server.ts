@@ -2991,8 +2991,25 @@ app.post("/api/markdown/purge-orphans", requireSymbolicApiKey, async (req, res) 
   }
 });
 
+// Tanda 3 (Fase 77) — empaquetado desktop: cuando exista un frontend construido
+// (dist/index.html, producto de `npm run build`), se sirve desde este mismo
+// proceso. Es aditivo: no altera ninguna ruta /api existente y evita lanzar un
+// segundo proceso (vite preview) para la app de escritorio, de modo que todo el
+// almacenamiento del vault sigue siendo tocado por un unico proceso.
+const frontendDistDir = resolve(process.cwd(), "dist");
+const frontendIndexHtml = resolve(frontendDistDir, "index.html");
+if (existsSync(frontendIndexHtml)) {
+  app.use(express.static(frontendDistDir));
+  app.get(/^\/(?!api(\/|$)).*/, (_req, res) => {
+    res.sendFile(frontendIndexHtml);
+  });
+}
+
 app.listen(PORT, () => {
       console.log(`T-BIT API activa en http://localhost:${PORT}`);
+      if (existsSync(frontendIndexHtml)) {
+        console.log(`Q-Vault OS (frontend construido) disponible en http://localhost:${PORT}`);
+      }
       console.log(`Integridad HMAC activa con key id '${HMAC_KEY_ID}'.`);
       console.log("Recovery WAL completado para universo principal y memoria IA.");
     });
