@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Bot, Cpu, Loader2, Play, RefreshCw, ShieldCheck, Users } from "lucide-react";
+import { EmptyState, ErrorState, SkeletonLines } from "./ui/StateViews";
 import {
   agentRuntimeClient,
   type AgentCatalogEntry,
@@ -44,6 +45,7 @@ export function AgentRuntimePanel() {
   const [verification, setVerification] = useState<VaultVerificationView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
     try {
@@ -56,10 +58,12 @@ export function AgentRuntimePanel() {
       setAgents(catalog.agents);
       setProviders(health.providers);
       setEvents(journal);
+      setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Fallo cargando el runtime de agentes.");
     } finally {
       setBusy(false);
+      setLoading(false);
     }
   };
 
@@ -87,11 +91,11 @@ export function AgentRuntimePanel() {
   };
 
   return (
-    <section className="border border-cyan-900/50 bg-gray-950/70 p-4 font-mono text-xs text-white backdrop-blur">
+    <section className="tbit-panel p-4 font-mono text-xs text-white" aria-label="Runtime de agentes T-BIT">
       <div className="mb-3 flex items-center justify-between border-b border-cyan-950 pb-2">
         <div>
           <div className="flex items-center gap-2 text-[10px] font-bold tracking-widest text-cyan-300">
-            <Bot size={14} />
+            <Bot size={14} aria-hidden />
             T-BIT AGENT RUNTIME
           </div>
           <div className="mt-1 text-gray-500">Enjambre multi-agente, failover de IA y memoria evolutiva en Q-Vault.</div>
@@ -99,24 +103,38 @@ export function AgentRuntimePanel() {
         <button
           onClick={refresh}
           disabled={busy}
-          className="border border-cyan-800/60 bg-cyan-950/30 p-2 text-cyan-300 hover:bg-cyan-500 hover:text-black disabled:opacity-50"
+          className="tbit-btn tbit-btn-ghost !p-2"
           title="Refrescar runtime"
+          aria-label="Refrescar runtime de agentes"
         >
-          <RefreshCw size={14} className={busy ? "animate-spin" : ""} />
+          <RefreshCw size={14} className={busy ? "animate-spin" : ""} aria-hidden />
         </button>
       </div>
 
+      {loading && agents.length === 0 ? (
+        <div className="space-y-3">
+          <SkeletonLines lines={3} />
+          <p className="sr-only">Cargando catalogo de agentes y salud de proveedores.</p>
+        </div>
+      ) : (
+        <>
+          {error && (
+            <div className="mb-3">
+              <ErrorState message={error} onRetry={refresh} />
+            </div>
+          )}
+
       <div className="mb-3 grid grid-cols-3 gap-2">
         <div className="border border-gray-900 bg-black/30 p-2">
-          <div className="flex items-center gap-1 text-gray-500"><Users size={11} /> Agentes</div>
+          <div className="flex items-center gap-1 text-gray-500"><Users size={11} aria-hidden /> Agentes</div>
           <div className="mt-1 font-bold text-cyan-200">{agents.length}</div>
         </div>
         <div className="border border-gray-900 bg-black/30 p-2">
-          <div className="flex items-center gap-1 text-gray-500"><Cpu size={11} /> Cadena IA</div>
+          <div className="flex items-center gap-1 text-gray-500"><Cpu size={11} aria-hidden /> Cadena IA</div>
           <div className="mt-1 font-bold text-purple-300">{providers.length} eslabones</div>
         </div>
         <div className="border border-gray-900 bg-black/30 p-2">
-          <div className="flex items-center gap-1 text-gray-500"><ShieldCheck size={11} /> Enfriamiento</div>
+          <div className="flex items-center gap-1 text-gray-500"><ShieldCheck size={11} aria-hidden /> Enfriamiento</div>
           <div className={`mt-1 font-bold ${providers.some((provider) => provider.inCooldown) ? "text-amber-300" : "text-emerald-300"}`}>
             {providers.filter((provider) => provider.inCooldown).length} en cooldown
           </div>
@@ -124,17 +142,21 @@ export function AgentRuntimePanel() {
       </div>
 
       <div className="mb-3 space-y-1">
-        {providers.map((provider) => (
-          <div key={provider.id} className="flex items-center justify-between border border-gray-900 bg-black/30 px-2 py-1">
-            <span className="text-gray-300">{provider.label}</span>
-            <span className="flex items-center gap-2">
-              {provider.lastLatencyMs !== null && <span className="text-gray-500">{provider.lastLatencyMs} ms</span>}
-              <span className={provider.inCooldown ? "text-amber-300" : provider.available ? "text-emerald-300" : "text-red-300"}>
-                {provider.inCooldown ? "ENFRIAMIENTO" : provider.available ? "DISPONIBLE" : "CAIDO"}
+        {providers.length === 0 ? (
+          <EmptyState title="Sin eslabones IA reportados" hint="La cadena de failover se muestra al conectar con el servidor." />
+        ) : (
+          providers.map((provider) => (
+            <div key={provider.id} className="flex items-center justify-between border border-gray-900 bg-black/30 px-2 py-1">
+              <span className="text-gray-300">{provider.label}</span>
+              <span className="flex items-center gap-2">
+                {provider.lastLatencyMs !== null && <span className="text-gray-500">{provider.lastLatencyMs} ms</span>}
+                <span className={provider.inCooldown ? "text-amber-300" : provider.available ? "text-emerald-300" : "text-red-300"}>
+                  {provider.inCooldown ? "ENFRIAMIENTO" : provider.available ? "DISPONIBLE" : "CAIDO"}
+                </span>
               </span>
-            </span>
-          </div>
-        ))}
+            </div>
+          ))
+        )}
       </div>
 
 
@@ -148,14 +170,15 @@ export function AgentRuntimePanel() {
               if (event.key === "Enter" && phase !== "running") void runSwarm();
             }}
             placeholder="Tarea para el enjambre (ej: revisa la seguridad del modulo de pagos)"
-            className="flex-1 border border-gray-800 bg-black/40 px-2 py-2 text-gray-200 outline-none placeholder:text-gray-600 focus:border-cyan-700"
+            aria-label="Tarea para el enjambre multi-agente"
+            className="tbit-input flex-1 font-mono"
           />
           <button
             onClick={runSwarm}
             disabled={phase === "running" || !task.trim()}
-            className="flex items-center gap-1 border border-cyan-700/60 bg-cyan-950/40 px-3 py-2 text-cyan-200 hover:bg-cyan-500 hover:text-black disabled:opacity-50"
+            className="tbit-btn"
           >
-            {phase === "running" ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+            {phase === "running" ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <Play size={13} aria-hidden />}
             Ejecutar
           </button>
         </div>
@@ -212,17 +235,23 @@ export function AgentRuntimePanel() {
 
       <div className="max-h-48 overflow-y-auto">
         <div className="mb-1 text-[10px] font-bold tracking-widest text-gray-500">CATALOGO DE AGENTES</div>
-        <div className="grid grid-cols-2 gap-1">
-          {agents.map((agent) => (
-            <div key={agent.file} className="border border-gray-900 bg-black/30 px-2 py-1" title={agent.description}>
-              <div className="truncate text-gray-200">{agent.name}</div>
-              <div className="text-[10px] text-gray-600">
-                {agent.policy.canDelete ? "escritura+borrado" : agent.policy.canWrite ? "escritura" : "lectura"} · {agent.tools.length} tools
+        {agents.length === 0 ? (
+          <EmptyState title="Catalogo de agentes vacio" hint="Verifica que el servidor T-BIT API este activo y reintenta." />
+        ) : (
+          <div className="grid grid-cols-2 gap-1">
+            {agents.map((agent) => (
+              <div key={agent.file} className="border border-gray-900 bg-black/30 px-2 py-1" title={agent.description}>
+                <div className="truncate text-gray-200">{agent.name}</div>
+                <div className="text-[10px] text-gray-600">
+                  {agent.policy.canDelete ? "escritura+borrado" : agent.policy.canWrite ? "escritura" : "lectura"} · {agent.tools.length} tools
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
+        </>
+      )}
     </section>
   );
 }

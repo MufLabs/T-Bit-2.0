@@ -110,6 +110,8 @@ type AiMessage = {
   id: string;
   sender: "T-User" | "Oraculo";
   text: string;
+  /** Tanda 3 — marca los avisos del eslabon determinista para renderizarlos como banner distintivo, no como respuesta de IA. */
+  kind?: "deterministic-notice";
 };
 type UniverseMode = "user" | "ai";
 
@@ -2304,10 +2306,10 @@ export default function App() {
     };
   }
 
-  function pushAiMessage(sender: AiMessage["sender"], text: string) {
+  function pushAiMessage(sender: AiMessage["sender"], text: string, kind?: AiMessage["kind"]) {
     setAiMessages((current) => [
       ...current,
-      { id: crypto.randomUUID(), sender, text }
+      { id: crypto.randomUUID(), sender, text, kind }
     ].slice(-18));
   }
 
@@ -2741,6 +2743,7 @@ export default function App() {
           pushAiMessage(
             "Oraculo",
             "⚠️ AVISO T-BIT: esta respuesta proviene del ESLABON DETERMINISTA LOCAL (reglas fijas, sin modelo de IA). Los proveedores de IA configurados fallaron, agotaron cuota o estan en enfriamiento. La respuesta puede ser limitada y no debe tratarse como generada por IA.",
+            "deterministic-notice",
           );
         }
         await autoSaveChatTurn(command, responseText, "provider_chat");
@@ -4080,12 +4083,48 @@ export default function App() {
             )}
 
             <div className="mt-4 max-h-[250px] min-h-[145px] shrink-0 space-y-3 overflow-y-auto rounded-[24px] border border-white/10 bg-[#314199]/28 p-4 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              {aiProviderInfo && (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em]">
+                  <span className="text-blue-100/55">Motor de respuesta</span>
+                  <span
+                    className={
+                      aiProviderInfo.mode === "deterministic"
+                        ? "tbit-badge tbit-badge-warn"
+                        : "tbit-badge tbit-badge-ok"
+                    }
+                    title={
+                      aiProviderInfo.mode === "deterministic"
+                        ? "Respuestas generadas por reglas locales deterministas, sin modelo de IA."
+                        : `Respuestas generadas por IA: ${aiProviderInfo.label} (${aiProviderInfo.model}).`
+                    }
+                  >
+                    {aiProviderInfo.mode === "deterministic"
+                      ? "Eslabon determinista local"
+                      : `${aiProviderInfo.label} · ${aiProviderInfo.model}`}
+                  </span>
+                </div>
+              )}
               {aiMessages.map((message) => (
                 <div key={message.id} className={message.sender === "T-User" ? "ml-auto max-w-[82%]" : "mr-auto max-w-[82%]"}>
-                  <div className={message.sender === "T-User" ? "rounded-2xl border border-cyan-100/20 bg-cyan-200/10 p-3" : "rounded-2xl border border-white/12 bg-white/10 p-3"}>
-                    <p className={message.sender === "T-User" ? "text-cyan-100" : "text-pink-100"}>{message.sender}</p>
-                    <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed text-blue-50/88">{message.text}</p>
-                  </div>
+                  {message.kind === "deterministic-notice" ? (
+                    <div
+                      role="note"
+                      aria-label="Aviso de eslabon determinista"
+                      className="tbit-animate-in rounded-2xl border border-amber-300/45 bg-amber-950/35 p-3"
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-200">
+                        Sin IA · Eslabon determinista
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-amber-50/90">
+                        {message.text}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className={message.sender === "T-User" ? "rounded-2xl border border-cyan-100/20 bg-cyan-200/10 p-3" : "rounded-2xl border border-white/12 bg-white/10 p-3"}>
+                      <p className={message.sender === "T-User" ? "text-cyan-100" : "text-pink-100"}>{message.sender}</p>
+                      <p className="mt-2 whitespace-pre-wrap break-words leading-relaxed text-blue-50/88">{message.text}</p>
+                    </div>
+                  )}
                 </div>
               ))}
               <div ref={aiChatEndRef} />

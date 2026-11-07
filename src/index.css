@@ -24,3 +24,278 @@ button,
 input {
   font: inherit;
 }
+
+/* ============================================================
+   T-BIT Design System — Tanda 3 (Fase 76)
+   Tokens y primitivas visuales sobre la identidad existente
+   (void #030712, cyan #00ffcc, magenta #ff2d75). Capa aditiva:
+   no reemplaza ninguna clase Tailwind existente.
+   ============================================================ */
+
+:root {
+  /* Color */
+  --tbit-void: #030712;
+  --tbit-void-soft: #061220;
+  --tbit-cyan: #00ffcc;
+  --tbit-cyan-soft: #7ff5dd;
+  --tbit-magenta: #ff2d75;
+  --tbit-amber: #fbbf24;
+  --tbit-danger: #f87171;
+  --tbit-ok: #34d399;
+  --tbit-text: #e5fbff;
+  --tbit-text-dim: rgba(229, 251, 255, 0.62);
+  --tbit-text-faint: rgba(229, 251, 255, 0.4);
+
+  /* Superficies */
+  --tbit-surface: rgba(6, 18, 32, 0.68);
+  --tbit-surface-raised: rgba(10, 26, 44, 0.82);
+  --tbit-border: rgba(0, 255, 204, 0.16);
+  --tbit-border-strong: rgba(0, 255, 204, 0.38);
+
+  /* Tipografia y espaciado */
+  --tbit-radius: 14px;
+  --tbit-radius-lg: 20px;
+  --tbit-space-1: 4px;
+  --tbit-space-2: 8px;
+  --tbit-space-3: 12px;
+  --tbit-space-4: 16px;
+  --tbit-space-6: 24px;
+
+  /* Elevacion */
+  --tbit-shadow-panel: 0 10px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 255, 204, 0.06);
+  --tbit-shadow-glow: 0 0 24px rgba(0, 255, 204, 0.14);
+
+  /* Movimiento */
+  --tbit-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tbit-duration: 220ms;
+}
+
+/* ---------- Accesibilidad: foco de teclado visible ---------- */
+:focus-visible {
+  outline: 2px solid var(--tbit-cyan);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible) {
+  outline: none;
+}
+
+::selection {
+  background: rgba(0, 255, 204, 0.28);
+  color: #ffffff;
+}
+
+/* ---------- Scrollbars coherentes ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 255, 204, 0.25) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 204, 0.22);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 204, 0.4);
+}
+
+/* ---------- Animaciones sutiles ---------- */
+@keyframes tbit-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tbit-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes tbit-pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.tbit-animate-in {
+  animation: tbit-fade-up var(--tbit-duration) var(--tbit-ease) both;
+}
+
+.tbit-pulse-soft {
+  animation: tbit-pulse-soft 1.6s ease-in-out infinite;
+}
+
+/* Respeta la preferencia de movimiento reducido del usuario */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Primitivas de panel ---------- */
+.tbit-panel {
+  border: 1px solid var(--tbit-border);
+  background: var(--tbit-surface);
+  border-radius: var(--tbit-radius);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--tbit-shadow-panel);
+}
+
+.tbit-panel-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tbit-cyan-soft);
+}
+
+/* ---------- Botones ---------- */
+.tbit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--tbit-border-strong);
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tbit-cyan);
+  background: rgba(0, 255, 204, 0.08);
+  cursor: pointer;
+  transition:
+    background var(--tbit-duration) var(--tbit-ease),
+    color var(--tbit-duration) var(--tbit-ease),
+    transform var(--tbit-duration) var(--tbit-ease),
+    box-shadow var(--tbit-duration) var(--tbit-ease);
+}
+
+.tbit-btn:hover:not(:disabled) {
+  background: var(--tbit-cyan);
+  color: #04121a;
+  box-shadow: var(--tbit-shadow-glow);
+}
+
+.tbit-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.tbit-btn:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
+.tbit-btn-ghost {
+  border-color: rgba(229, 251, 255, 0.14);
+  background: transparent;
+  color: var(--tbit-text-dim);
+}
+
+.tbit-btn-ghost:hover:not(:disabled) {
+  background: rgba(229, 251, 255, 0.08);
+  color: var(--tbit-text);
+  box-shadow: none;
+}
+
+/* ---------- Inputs ---------- */
+.tbit-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(229, 251, 255, 0.14);
+  background: rgba(3, 7, 18, 0.6);
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--tbit-text);
+  transition: border-color var(--tbit-duration) var(--tbit-ease);
+}
+
+.tbit-input::placeholder {
+  color: var(--tbit-text-faint);
+}
+
+.tbit-input:hover {
+  border-color: rgba(0, 255, 204, 0.3);
+}
+
+.tbit-input:focus {
+  border-color: var(--tbit-border-strong);
+  outline: none;
+}
+
+/* ---------- Badges y estados ---------- */
+.tbit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  border: 1px solid var(--tbit-border);
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tbit-badge-ok {
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--tbit-ok);
+}
+
+.tbit-badge-warn {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--tbit-amber);
+}
+
+.tbit-badge-error {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--tbit-danger);
+}
+
+.tbit-skeleton {
+  border-radius: 8px;
+  background: linear-gradient(
+    100deg,
+    rgba(229, 251, 255, 0.05) 40%,
+    rgba(229, 251, 255, 0.12) 50%,
+    rgba(229, 251, 255, 0.05) 60%
+  );
+  background-size: 200% 100%;
+  animation: tbit-shimmer 1.4s linear infinite;
+}
+

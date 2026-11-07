@@ -4652,6 +4652,56 @@ npm run logic:build -> PASS
 npx tsc --noEmit    -> 0 errores
 ```
 
+
+## Fase 76 (Tanda 3, puntos 3 y 4) — Sistema de diseño, estados de UI y experiencia asistente
+
+Fecha: 2026-11-07. Rama: `feature/evolucion-tbit`.
+
+### Sistema de diseño (capa aditiva sobre la identidad existente)
+
+`src/index.css` incorpora la capa "T-BIT Design System": tokens CSS (color, superficies,
+tipografía, espaciado, elevación, movimiento) derivados de la identidad vigente
+(void `#030712`, cyan `#00ffcc`, magenta `#ff2d75`), más primitivas reutilizables:
+`.tbit-panel`, `.tbit-btn`/`.tbit-btn-ghost`, `.tbit-input`, `.tbit-badge(-ok/-warn/-error)`,
+`.tbit-skeleton`, `.tbit-animate-in`. No reemplaza ninguna clase Tailwind existente.
+
+Accesibilidad básica incluida: anillo de foco visible con `:focus-visible`, respeto de
+`prefers-reduced-motion`, scrollbars coherentes, `::selection` con contraste.
+
+### Estados de carga, vacío y error
+
+Nuevo módulo `src/components/ui/StateViews.tsx`: `LoadingState` (role=status, aria-live),
+`SkeletonLines` (shimmer), `EmptyState` y `ErrorState` (role=alert, con botón Reintentar).
+Integrados en `AgentRuntimePanel`: skeleton durante la carga inicial, error con reintento,
+estados vacíos para cadena IA, journal y catálogo; botones/inputs migrados a las primitivas
+del sistema; iconos decorativos marcados `aria-hidden`; sección con `aria-label`.
+
+### Experiencia tipo asistente (Q-Vault OS)
+
+- El aviso del **eslabón determinista** ya no se muestra como una burbuja de chat normal:
+  `AiMessage` incorpora `kind?: "deterministic-notice"` y se renderiza como banner ámbar
+  distintivo ("Sin IA · Eslabon determinista"), imposible de confundir con una respuesta de IA.
+- Chip persistente **"Motor de respuesta"** sobre el chat de Q-Vault OS: muestra el proveedor
+  activo y su modelo; cuando el modo es determinista, el chip cambia a estado de advertencia
+  con explicación en el tooltip.
+- Quantum Engine permanece intacto como consola técnica (los cambios en su chat son solo el
+  campo opcional `kind`, sin alterar su renderizado).
+
+### Veracidad visual
+
+No hay herramienta de navegador disponible en esta sesión: el resultado visual queda
+**NO VERIFICADO** por captura. Verificado por compilación y suite: `tsc --noEmit` 0 errores,
+`npm run build` PASS, `npm test` 89/89 PASS.
+
+## Verificación ejecutada
+
+```text
+npm test            -> 89/89 PASS (13 archivos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+npm run build       -> PASS
+```
+
 ## Verificación ejecutada
 
 ```text
