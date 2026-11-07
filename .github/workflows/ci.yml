@@ -1,0 +1,50 @@
+# CI multiplataforma de T-BIT CORE (Tanda 3, punto 2).
+#
+# Valida instalacion, build logico, type-check, suite de tests y build de
+# frontend en Windows, macOS y Linux. Para validar macOS y Linux, subir la
+# rama `feature/evolucion-tbit` a GitHub y ejecutar este flujo (Actions):
+# los resultados locales en Windows NO sustituyen esta verificacion.
+#
+# Nota de portabilidad: todos los pasos usan los scripts npm existentes, que
+# ya son multiplataforma (node/tsx/tsc/vite, sin comandos de shell).
+
+name: CI multiplataforma
+
+on:
+  push:
+    branches: [feature/evolucion-tbit]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalacion limpia
+        run: npm ci
+
+      - name: Build logico (dist/)
+        run: npm run logic:build
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Suite de tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build

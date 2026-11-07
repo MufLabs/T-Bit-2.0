@@ -4627,6 +4627,31 @@ que nunca haya más de un proceso de servidor sobre el mismo vault, que es la co
 la cual eso es seguro. El empaquetado de escritorio (punto 5 de esta tanda) no debe lanzar
 procesos paralelos sobre el mismo almacenamiento.
 
+
+## Fase 75 (Tanda 3, punto 2) — CI multiplataforma (Windows / macOS / Linux)
+
+Fecha: 2026-11-07. Rama: `feature/evolucion-tbit`.
+
+Se creó `.github/workflows/ci.yml` con matriz de `ubuntu-latest`, `macos-latest` y
+`windows-latest`. En cada sistema ejecuta, en orden: `npm ci`, `npm run logic:build`,
+`npx tsc --noEmit`, `npm test` y `npm run build`. Se activa en push a
+`feature/evolucion-tbit`, pull requests y ejecución manual (`workflow_dispatch`).
+
+**Cómo validar macOS y Linux:** subir la rama a GitHub y ejecutar el flujo en la pestaña
+Actions. Los resultados locales en Windows NO sustituyen esta verificación.
+
+**Estado de veracidad:** el flujo está creado pero NO ejecutado (no se hace push en esta
+sesión). La paridad real en macOS y Linux queda **NO VERIFICADA** hasta que el flujo corra
+en verde en los tres sistemas.
+
+## Verificación ejecutada
+
+```text
+npm test            -> 89/89 PASS (13 archivos)
+npm run logic:build -> PASS
+npx tsc --noEmit    -> 0 errores
+```
+
 ## Verificación ejecutada
 
 ```text
