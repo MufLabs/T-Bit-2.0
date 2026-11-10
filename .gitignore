@@ -48,3 +48,5 @@ Thumbs.db
 data/spaces/
 # Advisory lock files held by a running T-BIT server
 *.tbit.lock
+# Server single-instance guard lock (Fase 74; runtime artifact)
+data/server-instance.lock

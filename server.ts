@@ -32,6 +32,7 @@ import { deleteAsset, getAssetStats, listAssets } from "./assetManager";
 import { getContainerHealthReport } from "./containerHealth";
 import { reconcileContainerHealth } from "./healthReconciliation";
 import { getAiPermissionsPolicy, updateAiPermissionsPolicy } from "./aiPermissions";
+import { registerStaticFrontend, securityHeadersMiddleware } from "./src/staticFrontend";
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 import express, { Request, Response } from "express";
 import { existsSync, rmSync, statSync } from "fs";
@@ -272,7 +273,13 @@ function extractRequestedVaultRoot(req: Request): string | undefined {
 }
 
 app.use(cors({ origin: ["http://localhost:5173", "http://127.0.0.1:5173"] }));
-app.use((_request, response, next) => {
+// Tanda 4 (Fase 79): cabeceras de seguridad coherentes para toda respuesta.
+app.use(securityHeadersMiddleware);
+// Tanda 4 (Fase 79): el Content-Type JSON se aplica SOLO a /api. Antes era un
+// middleware global y contaminaba la entrega estatica: express.static/sendFile
+// no sobreescriben un Content-Type ya presente, asi que el HTML de Q-Vault OS
+// se entregaba como application/json y el navegador lo mostraba como texto.
+app.use("/api", (_request, response, next) => {
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   next();
 });
@@ -2992,22 +2999,22 @@ app.post("/api/markdown/purge-orphans", requireSymbolicApiKey, async (req, res) 
 });
 
 // Tanda 3 (Fase 77) — empaquetado desktop: cuando exista un frontend construido
-// (dist/index.html, producto de `npm run build`), se sirve desde este mismo
-// proceso. Es aditivo: no altera ninguna ruta /api existente y evita lanzar un
-// segundo proceso (vite preview) para la app de escritorio, de modo que todo el
-// almacenamiento del vault sigue siendo tocado por un unico proceso.
-const frontendDistDir = resolve(process.cwd(), "dist");
-const frontendIndexHtml = resolve(frontendDistDir, "index.html");
-if (existsSync(frontendIndexHtml)) {
-  app.use(express.static(frontendDistDir));
-  app.get(/^\/(?!api(\/|$)).*/, (_req, res) => {
-    res.sendFile(frontendIndexHtml);
-  });
-}
+// (dist/frontend/index.html, producto de `npm run build`), se sirve desde este
+// mismo proceso. Es aditivo: no altera ninguna ruta /api existente y evita
+// lanzar un segundo proceso (vite preview) para la app de escritorio, de modo
+// que todo el almacenamiento del vault sigue siendo tocado por un unico
+// proceso.
+// Tanda 4 (Fase 79): la entrega estatica vive en src/staticFrontend.ts con
+// Content-Types correctos, 404 real para /assets inexistentes, reserva SPA solo
+// para navegacion y X-Content-Type-Options. El frontend compila en dist/
+// frontend para no compartir outDir con la logica de servidor (tsc escribe
+// dist/*.js): antes `vite build` vaciaba dist/ y borraba dist/server.js.
+const frontendDistDir = resolve(process.cwd(), "dist", "frontend");
+const hasFrontendBuild = registerStaticFrontend(app, frontendDistDir);
 
 app.listen(PORT, () => {
       console.log(`T-BIT API activa en http://localhost:${PORT}`);
-      if (existsSync(frontendIndexHtml)) {
+      if (hasFrontendBuild) {
         console.log(`Q-Vault OS (frontend construido) disponible en http://localhost:${PORT}`);
       }
       console.log(`Integridad HMAC activa con key id '${HMAC_KEY_ID}'.`);

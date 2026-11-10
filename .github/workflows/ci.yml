@@ -48,3 +48,6 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Verificacion del bundle (sin chunks circulares ni precarga 3D)
+        run: npm run verify:bundle

@@ -6753,3 +6753,127 @@ npm test            -> 89/89 PASS (13 archivos, 4 tests nuevos con red real)
 npm run logic:build -> PASS
 npx tsc --noEmit    -> 0 errores
 ```
+
+## Fase 79 (Tanda 4) — Corrección de la regresión del frontend compilado
+
+Fecha: 2026-11-09. Rama: `feature/evolucion-tbit`. Decisiones: `DECISIONES_EVOLUCION.md`
+D-011, D-012, D-013, D-014.
+
+### Síntomas reportados (comprobados en navegador real por el usuario)
+
+```text
+C. npm run dev (127.0.0.1:5173)      -> la interfaz carga y muestra el primer
+                                        arranque "Configura tu Q-Vault OS". OK (referencia).
+A. npm run build + npx vite preview  -> pantalla negra; la interfaz no se dibuja.
+B. npm run start:desktop (:3000)     -> el navegador muestra el código HTML como texto.
+Build: aviso "Circular chunk: vendor-misc -> vendor-react -> vendor-misc" y
+modulepreload de vendor-three-core (810 kB), vendor-fiber y vendor-drei en index.html.
+```
+
+### Causas raíz (diagnosticadas por reproducción, no por hipótesis)
+
+1. **HTML entregado como texto (síntoma B):** `server.ts` tenía un middleware global
+   `app.use((_req, res) => res.setHeader("Content-Type", "application/json; charset=utf-8"))`
+   que fijaba el Content-Type de TODAS las respuestas. La librería `send` (usada por
+   `express.static` y `res.sendFile`) no sobreescribe un Content-Type ya presente, de modo
+   que el HTML se servía como `application/json` y el navegador lo mostraba como texto.
+   Reproducido con `curl -i http://localhost:3111/` → `Content-Type: application/json`.
+2. **Pantalla negra en el bundle (síntoma A):** la división manual de fragmentos
+   (`manualChunks` de la Fase 78) creaba dependencias circulares entre chunks
+   (`vendor-misc -> vendor-react -> vendor-misc`), que rompen el orden de inicialización
+   del bundle en el navegador. Además, la "carga diferida de Quantum Engine" de la Fase 78
+   nunca se implementó: `App.tsx` importaba `three`, `@react-three/fiber` y
+   `@react-three/drei` de forma estática, por eso aparecían en el `modulepreload` de
+   `index.html` (810 kB de three-core en la carga inicial).
+3. **Defecto latente descubierto en el diagnóstico:** `vite build` (outDir `dist/`) vaciaba
+   el directorio y borraba `dist/server.js` producido por `tsc -p tsconfig.node.json`: dos
+   builds distintos compartiendo el mismo outDir.
+
+### Correcciones aplicadas
+
+1. **Entrega estática correcta — nuevo módulo `src/staticFrontend.ts`** (registrado en
+   `tsconfig.node.json`): `registerStaticFrontend(app, distDir)` sirve el frontend con
+   Content-Types reales (`/` → `text/html; charset=UTF-8`, JS → `text/javascript`,
+   CSS → `text/css`), responde **404 JSON** para `/assets/*` inexistentes (nunca HTML),
+   aplica la reserva SPA **solo para navegación** (Accept: text/html; nunca `/api` ni
+   `/assets`) y añade `X-Content-Type-Options: nosniff`. En `server.ts`, el middleware JSON
+   quedó acotado a `/api` (todas las rutas del API son `/api/*`; comportamiento del API
+   intacto, incluida la autenticación por clave y el guard de instancia única).
+2. **Carga diferida real de Quantum Engine:** las escenas 3D (`VoidScene`, `QVaultScene3D`
+   y sus componentes auxiliares) se extrajeron **verbatim** de `App.tsx` a
+   `src/quantum/QuantumScenes.tsx`, con tipos/colores/helpers compartidos en
+   `src/quantum/quantumTypes.ts`. `App.tsx` las carga con `React.lazy` + `Suspense` y un
+   estado de carga accesible (`role="status"`). `three/fiber/drei` ya no aparecen en el
+   bundle inicial ni en el modulepreload: se descargan solo al abrir una vista 3D.
+3. **Sin `manualChunks`:** cualquier frontera manual entre librerías acopladas crea ciclos
+   (tras el primer arreglo apareció `vendor-fiber -> vendor-three-core -> vendor-fiber`).
+   Al ser la pila 3D exclusiva del módulo de importación dinámica, Rollup la coloca solo en
+   el chunk asíncrono sin fronteras artificiales. Resultado medido:
+
+```text
+ANTES  (Fase 78): index.html precargaba 5 chunks (three-core 810 kB incluido);
+                  aviso "Circular chunk vendor-misc -> vendor-react"; total inicial ~1.400 kB.
+DESPUES (Fase 79): entrada 407,45 kB (gzip 111,40 kB) + CSS 53,11 kB;
+                   QuantumScenes (three/fiber/drei) 996,59 kB SOLO como chunk asíncrono;
+                   modulepreload en index.html: 0; sin avisos "Circular chunk".
+```
+
+4. **outDir separados:** el frontend compila en `dist/frontend` (`vite.config.ts`);
+   `server.ts` y `scripts/launch-desktop.cjs` apuntan a `dist/frontend/index.html`.
+   `vite build` ya no borra `dist/server.js`.
+5. **Verificación automática del bundle — `npm run verify:bundle`**
+   (`scripts/verify-bundle.cjs`): ejecuta `vite build` y FALLA si hay avisos
+   "Circular chunk" o si `dist/frontend/index.html` precarga three/fiber/drei. Añadido como
+   paso obligatorio de CI tras `npm run build` (`.github/workflows/ci.yml`).
+6. **Pruebas de entrega estática con servidor HTTP real**
+   (`tests/StaticFrontend.phase79.test.ts`, 8 tests): para `/` y cada recurso referenciado
+   por un `index.html` de prueba comprueba estado y Content-Type, que ningún recurso
+   devuelva HTML, el 404 JSON de assets inexistentes, la reserva SPA solo para navegación,
+   que `/api` no sea interceptado y la cabecera nosniff.
+7. **Verificación en navegador real — `npm run verify:browser`**
+   (`scripts/verify-browser.cjs`, usa `playwright-core` con el Chrome/Edge del sistema, sin
+   descargar navegadores): comprueba que `#root` dibuja, que aparece la pantalla de primer
+   arranque y que no hay excepciones no capturadas; lista los errores de consola.
+
+### Verificación ejecutada (Windows, 2026-11-09)
+
+```text
+npm test              -> 97/97 PASS (14 archivos; 89 previos + 8 nuevos)
+npm run logic:build   -> PASS
+npx tsc --noEmit      -> 0 errores
+npm run verify:bundle -> OK (sin chunks circulares; modulepreload: 0)
+
+Navegador real (Chromium del sistema, headless, scripts/verify-browser.cjs):
+  C. npm run dev  http://127.0.0.1:5173  -> OK: interfaz dibujada + primer arranque
+  A. vite preview http://127.0.0.1:4173  -> OK: pantalla negra corregida
+  B. start:desktop http://localhost:3222 -> OK: HTML como texto corregido
+
+curl contra el servidor real (start:desktop, puerto 3222):
+  GET /                          -> 200 text/html; charset=UTF-8 + nosniff
+  GET /assets/index-*.js         -> 200 text/javascript; charset=UTF-8
+  GET /assets/index-*.css        -> 200 text/css; charset=UTF-8
+  GET /assets/no-existe.js       -> 404 application/json (nunca HTML)
+  GET /vista/inexistente (Accept: text/html) -> 200 text/html (reserva SPA)
+  GET /api/test                  -> 401 application/json (auth intacta)
+```
+
+Errores de consola residuales en la verificación (no son regresión): peticiones a la API
+en `http://localhost:3000` (valor por defecto de `VITE_TBIT_API_BASE_URL`) cuando no hay
+API escuchando en ese puerto, y `GET /favicon.ico` -> 404 (el proyecto no define favicon;
+cosmético y preexistente).
+
+### Procedimiento de comprobación manual (4 pasos, cualquier plataforma)
+
+```text
+1. npm run dev            -> abrir http://127.0.0.1:5173: debe verse el primer arranque
+                             "Configura tu Q-Vault OS".
+2. npm run build && npx vite preview -> abrir http://localhost:4173: debe verse la misma
+                             pantalla (NO pantalla negra).
+3. npm run start:desktop  -> abre http://localhost:3000: debe verse la interfaz (NO el
+                             código HTML como texto).
+4. Consola del navegador (F12): sin errores en rojo (salvo llamadas a la API sin clave
+   o ausente en el puerto 3000, y el 404 de favicon, ambos esperados).
+```
+
+**NO VERIFICADO:** la comprobación manual en macOS y Linux (este entorno es Windows); el
+flujo CI (Fase 75) la cubrirá al ejecutarse en GitHub Actions.

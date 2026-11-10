@@ -62,6 +62,7 @@
     "src/agents/AgentOrchestrator.ts",
     "src/agents/AgentMemoryBridge.ts",
     "src/skills/DynamicSkillManager.ts",
+    "src/staticFrontend.ts",
     "FallbackProviderChain.ts"
   ]
 }

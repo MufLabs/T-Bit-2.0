@@ -19,7 +19,7 @@ const http = require("node:http");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
-const frontendIndex = path.join(root, "dist", "index.html");
+const frontendIndex = path.join(root, "dist", "frontend", "index.html");
 const serverEntry = path.join(root, "dist", "server.js");
 const viteBin = path.join(root, "node_modules", "vite", "bin", "vite.js");
 const tscBin = path.join(root, "node_modules", "typescript", "bin", "tsc");
