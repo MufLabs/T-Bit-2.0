@@ -21,6 +21,10 @@ import { resolveActiveTBitDataPath } from "../../tbitRuntimePaths";
  *    de bytes, prefijos bloqueados) antes de persistir en Q-Vault.
  *  - Las instrucciones de una skill nunca prevalecen sobre el libro T-BIT ni
  *    sobre los guardarrailes del sistema.
+ *  - Las consultas a la API de GitHub aceptan el token opcional GITHUB_TOKEN
+ *    (cabecera Authorization: Bearer) SOLO hacia api.github.com y
+ *    raw.githubusercontent.com, nunca a otros dominios ni en redirecciones a
+ *    otros hosts, y nunca se incluye en logs ni mensajes de error.
  */
 
 export type SkillSource = "local" | "remote";
@@ -109,6 +113,92 @@ function slugId(value: string): string {
     .replace(/[^\p{L}\p{N}_-]+/gu, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
+}
+
+/**
+ * Hosts de GitHub a los que esta permitido enviar el token GITHUB_TOKEN.
+ * El token NUNCA se envia a otros dominios ni en redirecciones fuera de esta
+ * lista, y NUNCA aparece en logs, mensajes de error ni informes.
+ */
+const GITHUB_TOKEN_ALLOWED_HOSTS = new Set(["api.github.com", "raw.githubusercontent.com"]);
+const GITHUB_MAX_REDIRECTS = 5;
+
+/** Token opcional (GITHUB_TOKEN). Sin token, el comportamiento no cambia. */
+function githubToken(): string | undefined {
+  const token = process.env.GITHUB_TOKEN?.trim();
+  return token ? token : undefined;
+}
+
+function isGithubTokenAllowedHost(url: URL): boolean {
+  return url.protocol === "https:" && GITHUB_TOKEN_ALLOWED_HOSTS.has(url.hostname);
+}
+
+/** Cabeceras de una peticion a GitHub; Authorization solo si hay token y el host esta permitido. */
+function githubRequestHeaders(url: URL, options: { auth: boolean; accept?: string }): Record<string, string> {
+  const headers: Record<string, string> = { "User-Agent": "tbit-skill-catalog" };
+  if (options.accept) headers.Accept = options.accept;
+  const token = githubToken();
+  if (token && options.auth && isGithubTokenAllowedHost(url)) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+/**
+ * fetch contra GitHub con seguimiento manual de redirecciones: el token solo
+ * se envia al host original y a redirecciones dentro de los hosts permitidos;
+ * ante una redireccion a otro dominio se continua SIN token.
+ */
+async function fetchFromGitHub(rawUrl: string, accept?: string): Promise<Response> {
+  let current = new URL(rawUrl);
+  let allowAuth = true;
+  for (let hop = 0; hop <= GITHUB_MAX_REDIRECTS; hop++) {
+    const response = await fetch(current.toString(), {
+      headers: githubRequestHeaders(current, { auth: allowAuth, accept }),
+      redirect: "manual",
+    });
+    if (response.status < 300 || response.status >= 400) return response;
+    const location = response.headers.get("location");
+    if (!location) return response;
+    const next = new URL(location, current);
+    if (!isGithubTokenAllowedHost(next)) allowAuth = false;
+    current = next;
+  }
+  throw new Error("Demasiadas redirecciones al consultar GitHub (posible bucle).");
+}
+
+/**
+ * Describe un error HTTP de GitHub (mensaje del cuerpo + cabeceras de rate
+ * limit cuando existan) para que la causa real sea visible en los logs.
+ * NUNCA incluye el token ni ninguna credencial.
+ */
+async function describeGitHubError(response: Response): Promise<string> {
+  const parts: string[] = [];
+  try {
+    const body = await response.text();
+    if (body.trim()) {
+      try {
+        const parsed = JSON.parse(body) as { message?: unknown };
+        if (typeof parsed.message === "string" && parsed.message.trim()) {
+          parts.push(`mensaje de GitHub: "${parsed.message.trim()}"`);
+        }
+      } catch {
+        parts.push(`cuerpo: "${body.trim().slice(0, 200)}"`);
+      }
+    }
+  } catch {
+    // Cuerpo no legible: se omite sin romper el mensaje de error.
+  }
+  const remaining = response.headers.get("x-ratelimit-remaining");
+  if (remaining !== null && remaining !== "") parts.push(`x-ratelimit-remaining: ${remaining}`);
+  const reset = response.headers.get("x-ratelimit-reset");
+  if (reset !== null && reset !== "") {
+    const resetSeconds = Number(reset);
+    const resetIso =
+      Number.isFinite(resetSeconds) && resetSeconds > 0 ? new Date(resetSeconds * 1000).toISOString() : "";
+    parts.push(resetIso ? `x-ratelimit-reset: ${reset} (${resetIso})` : `x-ratelimit-reset: ${reset}`);
+  }
+  return parts.length ? ` Detalles: ${parts.join("; ")}.` : "";
 }
 
 function parseFrontmatter(raw: string): { meta: Record<string, string | string[]>; body: string } {
@@ -310,9 +400,10 @@ export class DynamicSkillManager {
       );
     }
     const url = `https://raw.githubusercontent.com/${input.repo}/${commit}/${input.path.replace(/^\/+/, "")}`;
-    const response = await fetch(url);
+    const response = await fetchFromGitHub(url);
     if (!response.ok) {
-      throw new Error(`No se pudo descargar la skill (${response.status}) desde ${url}`);
+      const details = await describeGitHubError(response);
+      throw new Error(`No se pudo descargar la skill (${response.status}) desde ${url}.${details}`);
     }
     const raw = await response.text();
     return this.installSkill({
@@ -335,9 +426,12 @@ export class DynamicSkillManager {
    */
   async listRemoteCatalog(repo: string, commit?: string): Promise<RemoteSkillCatalogEntry[]> {
     const url = `https://api.github.com/repos/${repo}/git/trees/${commit || "HEAD"}?recursive=1`;
-    const response = await fetch(url, { headers: { "User-Agent": "tbit-skill-catalog", Accept: "application/vnd.github+json" } });
+    const response = await fetchFromGitHub(url, "application/vnd.github+json");
     if (!response.ok) {
-      throw new Error(`No se pudo indexar el catalogo de ${repo} (HTTP ${response.status}).`);
+      // Diagnostico visible: mensaje de GitHub y cabeceras de rate limit
+      // (sin ninguna credencial) para distinguir 403 por rate limit de otros.
+      const details = await describeGitHubError(response);
+      throw new Error(`No se pudo indexar el catalogo de ${repo} (HTTP ${response.status}).${details}`);
     }
     const tree = (await response.json()) as { sha?: string; tree?: Array<{ type: string; path: string; size?: number }> };
     const resolvedCommit = tree.sha || commit || "HEAD";
@@ -365,9 +459,10 @@ export class DynamicSkillManager {
       throw new Error(`Skill "${catalogId}" no presente en el catalogo remoto verificado (skills/remote-catalog.json).`);
     }
     const url = `https://raw.githubusercontent.com/${entry.repo}/${entry.commit}/${entry.path.replace(/^\/+/, "")}`;
-    const response = await fetch(url);
+    const response = await fetchFromGitHub(url);
     if (!response.ok) {
-      throw new Error(`No se pudo descargar la skill ${entry.id} (HTTP ${response.status}) desde ${url}`);
+      const details = await describeGitHubError(response);
+      throw new Error(`No se pudo descargar la skill ${entry.id} (HTTP ${response.status}) desde ${url}.${details}`);
     }
     const raw = await response.text();
     const checksum = sha256(raw);

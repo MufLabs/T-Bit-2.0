@@ -1,9 +1,21 @@
-# CI multiplataforma de T-BIT CORE (Tanda 3, punto 2).
+# CI multiplataforma de T-BIT CORE (Tanda 3, punto 2; actualizado en fix/ci-github-token).
 #
-# Valida instalacion, build logico, type-check, suite de tests y build de
-# frontend en Windows, macOS y Linux. Para validar macOS y Linux, subir la
-# rama `feature/evolucion-tbit` a GitHub y ejecutar este flujo (Actions):
+# Se ejecuta en CADA push a main y a feature/evolucion-tbit, en cada pull
+# request y manualmente (workflow_dispatch). Valida instalacion, build logico,
+# type-check, suite de tests y build de frontend en Windows, macOS y Linux:
 # los resultados locales en Windows NO sustituyen esta verificacion.
+#
+# Permisos minimos: solo lectura del contenido del repositorio
+# (permissions: contents: read).
+#
+# GITHUB_TOKEN (secreto automatico del repositorio) se pasa al paso de pruebas
+# para autenticar las consultas a la API de GitHub del indexado de catalogos
+# remotos de skills (DynamicSkillManager.listRemoteCatalog) y evitar el limite
+# de peticiones anonimas por IP (causa del fallo intermitente HTTP 403 en
+# macOS del 2026-11-10). El token viaja solo como variable de entorno del paso,
+# nunca se escribe en el codigo ni en archivos versionados, y el codigo solo lo
+# envia a api.github.com y raw.githubusercontent.com (nunca a otros dominios,
+# ni en redirecciones a otros hosts, ni en logs o mensajes de error).
 #
 # Nota de portabilidad: todos los pasos usan los scripts npm existentes, que
 # ya son multiplataforma (node/tsx/tsc/vite, sin comandos de shell).
@@ -12,9 +24,12 @@ name: CI multiplataforma
 
 on:
   push:
-    branches: [feature/evolucion-tbit]
+    branches: [main, feature/evolucion-tbit]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -45,6 +60,8 @@ jobs:
 
       - name: Suite de tests
         run: npm test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build frontend
         run: npm run build
