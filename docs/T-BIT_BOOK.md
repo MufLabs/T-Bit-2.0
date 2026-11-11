@@ -6877,3 +6877,78 @@ cosmético y preexistente).
 
 **NO VERIFICADO:** la comprobación manual en macOS y Linux (este entorno es Windows); el
 flujo CI (Fase 75) la cubrirá al ejecutarse en GitHub Actions.
+
+## Corrección del fallo intermitente de CI en macOS — token GITHUB_TOKEN para la API de GitHub (rama `fix/ci-github-token`, 2026-11-10)
+
+### Síntoma y causa
+
+El flujo `.github/workflows/ci.yml` (matriz ubuntu/macos/windows) falló una vez solo en
+macOS, con un único test: `indexa el catalogo real de un repositorio de referencia con
+commit resuelto` (`tests/DynamicSkillManager.remoteCatalog.phase73.test.ts`), con el error
+`No se pudo indexar el catalogo de rmaterile/agent-skills (HTTP 403)` en
+`DynamicSkillManager.listRemoteCatalog`. Al relanzar sin cambios, pasaron los tres sistemas:
+fallo intermitente.
+
+Causa más probable (coherente con la evidencia, no demostrable en local): la consulta SIN
+autenticar a `https://api.github.com/repos/rmaterile/agent-skills/git/trees/HEAD?recursive=1`
+agotó el límite de peticiones anónimas de GitHub (60 req/hora por IP) desde la IP compartida
+del ejecutor de macOS. El repositorio de referencia sigue siendo público y accesible
+(verificado el 2026-11-10: `api.github.com/repos/rmaterile/agent-skills` responde 200 con
+`"visibility": "public"`), por lo que el 403 no fue por privacidad ni por desaparición del
+repo. El mensaje de error original no incluía el cuerpo ni las cabeceras de rate limit de
+GitHub, así que la causa real no quedaba registrada en el log.
+
+### Cambios aplicados
+
+1. **Diagnóstico visible** (`src/skills/DynamicSkillManager.ts`): los errores HTTP de GitHub
+   (`listRemoteCatalog`, `installRemoteSkill`, `installFromCatalog`) incluyen ahora el
+   mensaje del cuerpo de la respuesta y las cabeceras `x-ratelimit-remaining` y
+   `x-ratelimit-reset` cuando existen. El token NUNCA aparece en mensajes de error, logs ni
+   informes.
+2. **Autenticación opcional con `GITHUB_TOKEN`**: las consultas a la API de GitHub envían la
+   cabecera `Authorization: Bearer <token>` cuando la variable de entorno `GITHUB_TOKEN`
+   está definida. El token SOLO se envía a `api.github.com` y `raw.githubusercontent.com`;
+   el `fetch` usa seguimiento manual de redirecciones y ante una redirección a un host no
+   permitido se continúa SIN token. Sin token, el comportamiento es idéntico al anterior.
+3. **CI** (`.github/workflows/ci.yml`): `permissions: contents: read` (mínimos) y el paso de
+   pruebas recibe `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` como variable de entorno del
+   paso. El token no se escribe en el código ni en ningún archivo versionado. El disparador
+   `push` pasa a `branches: [main, feature/evolucion-tbit]` (se ejecuta en cada push a main
+   y en cada pull request; se mantiene `workflow_dispatch`).
+4. **Pruebas sin red** (`tests/DynamicSkillManager.githubToken.test.ts`, 5 tests, fetch
+   simulado): con token se envía `Authorization: Bearer` a `api.github.com` y a
+   `raw.githubusercontent.com`; sin token no se envía; el token no aparece en el mensaje de
+   error (que sí expone mensaje de GitHub y `x-ratelimit-*`); el token no viaja en
+   redirecciones a hosts no permitidos; la instalación desde el catálogo mantiene commit
+   fijado y verificación sha256 intactas.
+
+### Variables de entorno
+
+```text
+GITHUB_TOKEN   opcional. Token de GitHub para autenticar las consultas de skills a la
+               API (evita el límite anónimo de 60 req/h por IP). En CI se inyecta como
+               el secreto automatico del repositorio. Sin el, todo sigue funcionando
+               igual (sujeto al limite anonimo).
+```
+
+### Limitación conocida
+
+Sin `GITHUB_TOKEN`, las consultas anónimas a la API de GitHub siguen sujetas al límite de
+60 peticiones/hora por IP compartida: el fallo intermitente puede reaparecer en cualquier
+plataforma de ejecución compartida. Con el token autenticado el límite sube a 5.000
+peticiones/hora por repositorio. Además, la causa exacta del 403 de macOS no es
+reproducible en local (este entorno es Windows y el límite es por IP del ejecutor): el
+arreglo solo queda validado cuando el flujo se ejecute de nuevo en GitHub Actions.
+
+### Verificación ejecutada (Windows, 2026-11-10)
+
+```text
+npm run logic:build   -> PASS
+npx tsc --noEmit      -> 0 errores
+npm test              -> 102/102 PASS (15 archivos; 97 previos + 5 nuevos, sin red simulada)
+npm run verify:bundle -> OK (sin chunks circulares; modulepreload: 0)
+npm run build         -> PASS (entrada 407,45 kB + QuantumScenes solo como chunk asincrono)
+```
+
+Las 4 pruebas de red real de `phase73` (catálogo, instalación con sha256, rechazo de
+contenido manipulado y ampliación del catálogo) se mantienen intactas y pasaron con red.
