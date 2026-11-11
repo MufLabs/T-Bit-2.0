@@ -6935,7 +6935,7 @@ GITHUB_TOKEN   opcional. Token de GitHub para autenticar las consultas de skills
 
 Sin `GITHUB_TOKEN`, las consultas anónimas a la API de GitHub siguen sujetas al límite de
 60 peticiones/hora por IP compartida: el fallo intermitente puede reaparecer en cualquier
-plataforma de ejecución compartida. Con el token autenticado el límite sube a 5.000
+plataforma de ejecución compartida. Con el token autenticado el límite sube a 1.000
 peticiones/hora por repositorio. Además, la causa exacta del 403 de macOS no es
 reproducible en local (este entorno es Windows y el límite es por IP del ejecutor): el
 arreglo solo queda validado cuando el flujo se ejecute de nuevo en GitHub Actions.
